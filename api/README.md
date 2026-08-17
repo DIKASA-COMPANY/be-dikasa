@@ -1,13 +1,13 @@
-# Artefak API Dikasa
+# Dikasa API Artifacts
 
-- `openapi.yaml` adalah kontrak OpenAPI yang dihasilkan dari operasi Huma. Jangan
-  mengubahnya secara manual; jalankan `make openapi` atau
-  `go generate ./internal/server`.
-- `bruno/` berisi collection, environment contoh, dan request untuk pengujian
-  manual API.
-- Swagger UI tidak membutuhkan folder statis. Huma menyajikannya saat aplikasi
-  berjalan di `/dikasa/v1/docs` menggunakan kontrak yang sama.
+- `openapi.yaml` is generated from the Huma operations. Do not edit it manually;
+  run `make openapi` or `go generate ./internal/server`.
+- `bruno/` contains the local environment and executable example requests for
+  manual API testing.
+- Swagger UI is served at `/dikasa/v1/docs` while the API is running.
 
-Semua endpoint aplikasi menggunakan prefix `/dikasa/v1`. Login, register,
-konfirmasi/resend OTP, dan dokumentasi bersifat publik; endpoint lain harus
-mengirim `Authorization: Bearer <Firebase ID token>`.
+All application endpoints use the `/dikasa/v1` prefix. Login, registration,
+registration OTP confirmation/resend, Swagger, and OpenAPI are public. Other
+endpoints require `Authorization: Bearer <Firebase ID token>`.
+
+See the root `README.md` for the full local setup and Bruno walkthrough.
