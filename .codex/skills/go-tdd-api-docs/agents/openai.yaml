@@ -1,0 +1,4 @@
+interface:
+  display_name: "Go TDD, API Docs & Bruno"
+  short_description: "Enforce Go TDD, OpenAPI, Bruno, and ERD sync"
+  default_prompt: "Use $go-tdd-api-docs to implement this Go backend change."

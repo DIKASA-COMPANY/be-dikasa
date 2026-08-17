@@ -1,0 +1,27 @@
+meta {
+  name: Confirm Registration OTP
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/register/otp/confirm
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "budi@example.com",
+    "otp": "12345"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.verified: eq true
+}

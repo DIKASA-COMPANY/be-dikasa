@@ -1,0 +1,21 @@
+meta {
+  name: Profil Saya
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/users/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.id: isNotEmpty
+  res.body.data.username: isNotEmpty
+}

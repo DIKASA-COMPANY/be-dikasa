@@ -1,0 +1,37 @@
+meta {
+  name: Register
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/register
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "business_name": "Warung Dikasa",
+    "business_address": "Jl. Merdeka No. 10",
+    "business_phone": "081234567890",
+    "business_email": "owner@warung.example",
+    "owner_name": "Budi Santoso",
+    "owner_date_of_birth": "1990-01-02",
+    "owner_phone": "081298765432",
+    "owner_email": "budi@example.com",
+    "username": "budisantoso",
+    "password": "rahasia123",
+    "password_confirmation": "rahasia123",
+    "verification_email": "budi@example.com"
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.otp_expires_in: eq 300
+}
