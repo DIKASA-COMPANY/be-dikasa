@@ -1,0 +1,17 @@
+meta {
+  name: Delete Order Type (Manager)
+  type: http
+  seq: 22
+}
+
+delete {
+  url: {{baseUrl}}/dikasa/v1/order-types/{{orderTypeId}}
+  body: none
+  auth: bearer
+}
+auth:bearer {
+  token: {{accessToken}}
+}
+assert {
+  res.status: eq 204
+}

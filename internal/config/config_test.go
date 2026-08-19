@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestLoadRequiresApplicationConfiguration(t *testing.T) {
 	_, err := Load(func(string) string { return "" })
@@ -15,6 +19,7 @@ func TestLoadReturnsTypedConfiguration(t *testing.T) {
 		"DATABASE_URL":         "postgres://localhost/dikasa",
 		"FIREBASE_PROJECT_ID":  "dikasa-dev",
 		"FIREBASE_WEB_API_KEY": "api-key",
+		"IMAGE_STORAGE_MODE":   "disabled",
 		"OTP_SECRET":           "0123456789abcdef0123456789abcdef",
 		"SMTP_HOST":            "smtp.example.com",
 		"SMTP_PORT":            "587",
@@ -27,8 +32,45 @@ func TestLoadReturnsTypedConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if configuration.Port != "9090" || configuration.Firebase.ProjectID != "dikasa-dev" || configuration.Mail.Host != "smtp.example.com" || configuration.OTPSecret == "" {
+	if configuration.Port != "9090" || configuration.Firebase.ProjectID != "dikasa-dev" || configuration.Firebase.StorageMode != "disabled" || configuration.Mail.Host != "smtp.example.com" || configuration.OTPSecret == "" {
 		t.Fatalf("unexpected config: %+v", configuration)
+	}
+}
+
+func TestLoadRequiresFirebaseBucketOnlyWhenStorageEnabled(t *testing.T) {
+	values := map[string]string{
+		"DATABASE_URL":         "postgres://localhost/dikasa",
+		"FIREBASE_PROJECT_ID":  "dikasa-dev",
+		"FIREBASE_WEB_API_KEY": "api-key",
+		"IMAGE_STORAGE_MODE":   "firebase",
+		"OTP_SECRET":           "0123456789abcdef0123456789abcdef",
+		"SMTP_HOST":            "smtp.example.com",
+		"SMTP_PORT":            "587",
+		"SMTP_FROM":            "mailer@example.com",
+	}
+
+	if _, err := Load(func(key string) string { return values[key] }); err == nil {
+		t.Fatal("expected missing FIREBASE_STORAGE_BUCKET error")
+	}
+	values["FIREBASE_STORAGE_BUCKET"] = "dikasa-dev.firebasestorage.app"
+	configuration, err := Load(func(key string) string { return values[key] })
+	if err != nil || configuration.Firebase.StorageBucket != "dikasa-dev.firebasestorage.app" {
+		t.Fatalf("expected firebase storage config, got %+v, %v", configuration, err)
+	}
+}
+
+func TestLoadDotEnvDoesNotOverrideExistingEnvironment(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(path, []byte("DIKASA_DOTENV_TEST=file-value\n"), 0o600); err != nil {
+		t.Fatalf("write test env: %v", err)
+	}
+	t.Setenv("DIKASA_DOTENV_TEST", "environment-value")
+
+	if err := LoadDotEnv(path); err != nil {
+		t.Fatalf("load dotenv: %v", err)
+	}
+	if actual := os.Getenv("DIKASA_DOTENV_TEST"); actual != "environment-value" {
+		t.Fatalf("dotenv must not override environment, got %q", actual)
 	}
 }
 

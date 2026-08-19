@@ -2,8 +2,8 @@
 
 Dikasa Backend is a Go API for restaurant operations. The current implementation
 provides business-owner registration with email OTP verification, PostgreSQL
-credential validation, Firebase token issuance, authenticated user profiles,
-strict request validation, and generated OpenAPI documentation.
+credential validation, Firebase token issuance, authenticated POS catalogs,
+opening-cash sessions, outlet order types, and generated OpenAPI documentation.
 
 ## Contents
 
@@ -25,6 +25,7 @@ strict request validation, and generated OpenAPI documentation.
 - Huma for typed HTTP operations and OpenAPI generation
 - GORM with PostgreSQL
 - Firebase Authentication for ID and refresh tokens
+- Firebase Storage for optional product images (staged behind a runtime mode)
 - SMTP for registration OTP delivery
 - `go-playground/validator` for request validation
 - Bruno for manual API testing
@@ -56,6 +57,8 @@ be-dikasa/
 │   └── openapi/                # OpenAPI generator
 ├── internal/
 │   ├── auth/                   # Login and Firebase token issuance
+│   ├── cash/                   # Opening-cash sessions
+│   ├── catalog/                # Products, categories, order types, image storage
 │   ├── config/                 # Environment configuration
 │   ├── database/               # PostgreSQL and Firebase clients
 │   ├── registration/           # Register, confirm OTP, resend OTP, and SMTP
@@ -129,9 +132,9 @@ to the selected email address.
 
 ### 5. Set environment variables
 
-`.env.example` is a reference file. The application does **not** automatically
-load `.env`; export the variables in your terminal or use your local secret
-manager.
+Copy `.env.example` to an untracked `.env` for local development, or export the
+variables in your terminal. Existing process environment variables always win
+over `.env` values.
 
 PowerShell example:
 
@@ -140,6 +143,8 @@ $env:PORT = "8080"
 $env:DATABASE_URL = "postgres://dikasa:password@localhost:5432/dikasa?sslmode=disable"
 $env:FIREBASE_PROJECT_ID = "your-firebase-project-id"
 $env:FIREBASE_WEB_API_KEY = "your-firebase-web-api-key"
+$env:IMAGE_STORAGE_MODE = "disabled"
+$env:FIREBASE_STORAGE_BUCKET = "your-firebase-project-id.firebasestorage.app"
 $env:GOOGLE_APPLICATION_CREDENTIALS = "C:\secure\firebase-service-account.json"
 $env:OTP_SECRET = "replace-with-a-random-secret-of-at-least-32-characters"
 $env:SMTP_HOST = "smtp.example.com"
@@ -156,6 +161,8 @@ export PORT='8080'
 export DATABASE_URL='postgres://dikasa:password@localhost:5432/dikasa?sslmode=disable'
 export FIREBASE_PROJECT_ID='your-firebase-project-id'
 export FIREBASE_WEB_API_KEY='your-firebase-web-api-key'
+export IMAGE_STORAGE_MODE='disabled'
+export FIREBASE_STORAGE_BUCKET='your-firebase-project-id.firebasestorage.app'
 export GOOGLE_APPLICATION_CREDENTIALS='/secure/firebase-service-account.json'
 export OTP_SECRET='replace-with-a-random-secret-of-at-least-32-characters'
 export SMTP_HOST='smtp.example.com'
@@ -181,13 +188,26 @@ Without Make:
 ```bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000001_create_identity_tables.up.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000002_add_registration_otp.up.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000003_create_cash_sessions.up.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000004_create_catalog.up.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000005_add_user_profile_avatar.up.sql
 ```
 
 PowerShell users can replace `"$DATABASE_URL"` with `$env:DATABASE_URL`.
 
-The migrations create the `roles`, `genders`, `outlets`, `users`, and
-`registration_otps` tables. Passwords are stored as bcrypt hashes. OTP values
-are stored as HMAC-SHA256 hashes and are never persisted as plaintext.
+The migrations create the `roles`, `genders`, `outlets`, `users`,
+`registration_otps`, `cash_sessions`, `product_types`, `product_categories`,
+`products`, and `order_types` tables. Passwords are stored as bcrypt
+hashes. OTP values are stored as HMAC-SHA256 hashes and are never persisted as
+plaintext. Opening cash is stored as a whole-Rupiah integer per outlet cash
+session, with at most one open session per outlet.
+
+`IMAGE_STORAGE_MODE=disabled` is the safe default: products without images and
+text-only profile edits remain available, while image uploads return HTTP `503`. Set it to `firebase` only
+after the bucket, Blaze billing, and Application Default Credentials are ready.
+Images are limited to 3 MiB and validated as real PNG/JPEG content.
+The same storage mode applies to optional profile avatars. PINs use six digits,
+and both PINs and passwords are persisted only as bcrypt hashes.
 
 ## Running the API
 
@@ -268,6 +288,19 @@ All application routes use the `/dikasa/v1` prefix.
 | `POST` | `/register/otp/confirm` | Public | Verify the OTP and activate the outlet/user |
 | `POST` | `/login` | Public | Validate PostgreSQL credentials and issue Firebase tokens |
 | `GET` | `/users/me` | Firebase Bearer token | Return the authenticated PostgreSQL profile |
+| `PATCH` | `/users/me` | Firebase Bearer token | Partially update name, phone, email, or profile avatar |
+| `PATCH` | `/users/me/pin` | Firebase Bearer token | Set or change the six-digit account PIN |
+| `PATCH` | `/users/me/password` | Firebase Bearer token | Verify the current password and set a new password |
+| `POST` | `/cash-sessions` | Firebase Bearer token | Open the outlet cash session with an opening-cash amount |
+| `GET` | `/cash-sessions/current` | Firebase Bearer token | Return the outlet's active cash session |
+| `GET` | `/product-types` | Firebase Bearer token | Return Food, Drink, and Additional tabs |
+| `GET` | `/products` | Firebase Bearer token | Return outlet products with category, type, search, and pagination filters |
+| `GET` | `/products/{product_id}` | Firebase Bearer token | Return one outlet product |
+| `POST/PATCH/DELETE` | `/products` and `/products/{product_id}` | Manager | Manage products with soft delete |
+| `GET/POST` | `/product-types/{product_type}/categories` | User / Manager | List or create outlet categories for a product type |
+| `PATCH/DELETE` | `/product-types/{product_type}/categories/{category_id}` | Manager | Update or soft-delete a category |
+| `GET/POST` | `/order-types` | User / Manager | List or create outlet order types |
+| `PATCH/DELETE` | `/order-types/{order_type_id}` | Manager | Update or soft-delete an order type |
 | `GET` | `/health` | Firebase Bearer token | Confirm the authenticated API path is healthy |
 | `GET` | `/docs` | Public | Serve Swagger UI |
 | `GET` | `/openapi.yaml` | Public | Serve the generated OpenAPI document |
@@ -335,14 +368,14 @@ Additional project references:
 
 ## Rolling back migrations
 
-> Warning: rollback removes the registration and identity tables and destroys
-> their data. Use it only in a disposable local database.
+> Warning: rollback removes the cash-session, registration, and identity tables
+> and destroys their data. Use it only in a disposable local database.
 
 ```bash
 make migrate-down
 ```
 
-The registration migration is rolled back before the identity migration to
+The user-profile migration is rolled back before catalog, cash sessions, registration, and identity to
 preserve foreign-key ordering.
 
 ## Troubleshooting

@@ -3,15 +3,19 @@ package server
 import (
 	"bytes"
 	"context"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	firebaseauth "firebase.google.com/go/v4/auth"
 
 	"be-dikasa/internal/auth"
+	"be-dikasa/internal/cash"
+	"be-dikasa/internal/catalog"
 	"be-dikasa/internal/registration"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
@@ -42,8 +46,67 @@ func (routerUserRepository) FindByIdentifier(context.Context, string) (*user.Use
 }
 
 func (routerUserRepository) FindByID(_ context.Context, id string) (*user.User, error) {
-	return &user.User{ID: id, RoleID: "role-id", Username: "kasir", PhoneNumber: "08123456789", FirstName: "Dika", LastName: "Sa", IsActive: true}, nil
+	outletID := "outlet-id"
+	return &user.User{ID: id, RoleID: "role-id", OutletID: &outletID, Username: "kasir", PhoneNumber: "08123456789", FirstName: "Dika", LastName: "Sa", IsActive: true}, nil
 }
+
+func (routerUserRepository) UpdateProfile(context.Context, *user.User) error          { return nil }
+func (routerUserRepository) UpdatePINHash(context.Context, string, string) error      { return nil }
+func (routerUserRepository) UpdatePasswordHash(context.Context, string, string) error { return nil }
+
+type routerCashProvider struct{}
+
+func (routerCashProvider) Open(_ context.Context, userID string, openingCash int64) (*cash.Session, error) {
+	return &cash.Session{
+		ID: "session-id", OutletID: "outlet-id", UserID: userID, OpeningCash: openingCash,
+		Status: cash.StatusOpen, OpenedAt: time.Date(2026, time.August, 19, 1, 30, 0, 0, time.UTC),
+	}, nil
+}
+
+func (routerCashProvider) Current(_ context.Context, userID string) (*cash.Session, error) {
+	return routerCashProvider{}.Open(context.Background(), userID, 500_000)
+}
+
+type routerCatalogProvider struct{}
+
+func (routerCatalogProvider) ListProductTypes(context.Context, string) ([]catalog.ProductType, error) {
+	return nil, nil
+}
+func (routerCatalogProvider) ListProducts(context.Context, string, catalog.ProductFilter) ([]catalog.Product, int64, error) {
+	return nil, 0, nil
+}
+func (routerCatalogProvider) GetProduct(context.Context, string, string, bool) (*catalog.Product, error) {
+	return &catalog.Product{}, nil
+}
+func (routerCatalogProvider) CreateProduct(context.Context, string, catalog.ProductMutation) (*catalog.Product, error) {
+	return &catalog.Product{}, nil
+}
+func (routerCatalogProvider) UpdateProduct(context.Context, string, string, catalog.ProductMutation) (*catalog.Product, error) {
+	return &catalog.Product{}, nil
+}
+func (routerCatalogProvider) DeleteProduct(context.Context, string, string) error { return nil }
+func (routerCatalogProvider) ListCategories(context.Context, string, string, bool) ([]catalog.ProductCategory, error) {
+	return nil, nil
+}
+func (routerCatalogProvider) CreateCategory(context.Context, string, string, catalog.CategoryMutation) (*catalog.ProductCategory, error) {
+	return &catalog.ProductCategory{}, nil
+}
+func (routerCatalogProvider) UpdateCategory(context.Context, string, string, string, catalog.CategoryMutation) (*catalog.ProductCategory, error) {
+	return &catalog.ProductCategory{}, nil
+}
+func (routerCatalogProvider) DeleteCategory(context.Context, string, string, string) error {
+	return nil
+}
+func (routerCatalogProvider) ListOrderTypes(context.Context, string, bool) ([]catalog.OrderType, error) {
+	return nil, nil
+}
+func (routerCatalogProvider) CreateOrderType(context.Context, string, catalog.OrderTypeMutation) (*catalog.OrderType, error) {
+	return &catalog.OrderType{}, nil
+}
+func (routerCatalogProvider) UpdateOrderType(context.Context, string, string, catalog.OrderTypeMutation) (*catalog.OrderType, error) {
+	return &catalog.OrderType{}, nil
+}
+func (routerCatalogProvider) DeleteOrderType(context.Context, string, string) error { return nil }
 
 func newTestRouter() http.Handler {
 	userService := user.NewService(routerUserRepository{})
@@ -51,8 +114,31 @@ func newTestRouter() http.Handler {
 		AuthHandler:         auth.NewHandler(routerSignInProvider{}, sharedvalidator.New()),
 		RegistrationHandler: registration.NewHandler(routerRegistrationProvider{}, sharedvalidator.New()),
 		UserHandler:         user.NewHandler(userService),
+		CashHandler:         cash.NewHandler(routerCashProvider{}, sharedvalidator.New()),
+		CatalogHandler:      catalog.NewHandler(routerCatalogProvider{}, sharedvalidator.New()),
 		TokenVerifier:       stubTokenVerifier{token: &firebaseauth.Token{UID: "user-id"}},
 	})
+}
+
+func TestRouterPublishesAuthenticatedCashSessionFlow(t *testing.T) {
+	router := newTestRouter()
+
+	open := httptest.NewRequest(http.MethodPost, "/dikasa/v1/cash-sessions", strings.NewReader(`{"opening_cash":500000}`))
+	open.Header.Set("Content-Type", "application/json")
+	open.Header.Set("Authorization", "Bearer valid-token")
+	openResponse := httptest.NewRecorder()
+	router.ServeHTTP(openResponse, open)
+	if openResponse.Code != http.StatusCreated || !strings.Contains(openResponse.Body.String(), `"opening_cash":500000`) {
+		t.Fatalf("unexpected opening response: %d %s", openResponse.Code, openResponse.Body.String())
+	}
+
+	current := httptest.NewRequest(http.MethodGet, "/dikasa/v1/cash-sessions/current", nil)
+	current.Header.Set("Authorization", "Bearer valid-token")
+	currentResponse := httptest.NewRecorder()
+	router.ServeHTTP(currentResponse, current)
+	if currentResponse.Code != http.StatusOK || !strings.Contains(currentResponse.Body.String(), `"status":"open"`) {
+		t.Fatalf("unexpected current response: %d %s", currentResponse.Code, currentResponse.Body.String())
+	}
 }
 
 func TestRouterPublishesRegistrationOTPFlowWithoutToken(t *testing.T) {
@@ -101,6 +187,25 @@ func TestRouterPublishesLoginAndProtectsFeatureRoutes(t *testing.T) {
 	router.ServeHTTP(profileResponse, profile)
 	if profileResponse.Code != http.StatusOK || !strings.Contains(profileResponse.Body.String(), `"username":"kasir"`) {
 		t.Fatalf("unexpected profile response: %d %s", profileResponse.Code, profileResponse.Body.String())
+	}
+}
+
+func TestRouterPublishesSelfProfileUpdate(t *testing.T) {
+	router := newTestRouter()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	_ = writer.WriteField("first_name", "Janet")
+	_ = writer.WriteField("phone_number", "081234567890")
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPatch, "/dikasa/v1/users/me", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	request.Header.Set("Authorization", "Bearer valid-token")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"first_name":"Janet"`) {
+		t.Fatalf("unexpected profile update: %d %s", response.Code, response.Body.String())
 	}
 }
 

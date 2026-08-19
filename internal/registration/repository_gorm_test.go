@@ -30,14 +30,15 @@ func TestGORMRepositoryCreatesRegistrationInOneTransaction(t *testing.T) {
 	repository, mock := newRegistrationRepositoryMock(t)
 	now := time.Date(2026, 8, 17, 12, 0, 0, 0, time.UTC)
 	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT \* FROM "roles" WHERE LOWER\(name\) = \$1`).WithArgs("admin", 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow("role-id", "admin"))
+	mock.ExpectQuery(`SELECT \* FROM "roles" WHERE LOWER\(name\) = \$1`).WithArgs("manager", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow("role-id", "manager"))
 	mock.ExpectExec(`INSERT INTO "outlets"`).WithArgs(
 		"Jl. Merdeka 10", "restaurant", sqlmock.AnyArg(), nil, sqlmock.AnyArg(), false, "Warung Dikasa", "081234567890", 0, sqlmock.AnyArg(),
 	).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`INSERT INTO "users"`).WithArgs(
 		sqlmock.AnyArg(), now, "budi@example.com", "Budi", sqlmock.AnyArg(), false, "", sqlmock.AnyArg(), "hash", "081298765432", "role-id", sqlmock.AnyArg(), "budi",
 	).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`INSERT INTO order_types`).WillReturnResult(sqlmock.NewResult(0, 6))
 	mock.ExpectExec(`INSERT INTO "registration_otps"`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 

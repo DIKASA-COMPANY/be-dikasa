@@ -1,0 +1,27 @@
+meta {
+  name: Update My Profile
+  type: http
+  seq: 23
+}
+
+patch {
+  url: {{baseUrl}}/dikasa/v1/users/me
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:multipart-form {
+  first_name: Jane
+  last_name: Doe
+  phone_number: 081234567890
+  email: jane@example.com
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.first_name: eq Jane
+}

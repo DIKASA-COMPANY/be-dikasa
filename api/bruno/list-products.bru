@@ -1,0 +1,21 @@
+meta {
+  name: List Products
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/products?product_type=food&searchByProductName=nasi&page=1&page_size=30
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+  res.body.meta.page: eq 1
+}

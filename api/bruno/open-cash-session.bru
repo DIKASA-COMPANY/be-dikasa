@@ -1,0 +1,28 @@
+meta {
+  name: Open Cash Session
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/cash-sessions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "opening_cash": 500000
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isNotEmpty
+  res.body.data.opening_cash: eq 500000
+  res.body.data.status: eq open
+}

@@ -1,0 +1,20 @@
+meta {
+  name: Update Order Type (Manager)
+  type: http
+  seq: 21
+}
+
+patch {
+  url: {{baseUrl}}/dikasa/v1/order-types/{{orderTypeId}}
+  body: json
+  auth: bearer
+}
+auth:bearer {
+  token: {{accessToken}}
+}
+body:json {
+  { "code": "drive_thru", "name": "Drive Through", "sort_order": 70, "is_active": true }
+}
+assert {
+  res.status: eq 200
+}

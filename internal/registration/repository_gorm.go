@@ -23,7 +23,7 @@ func (repository *GORMRepository) CreatePending(ctx context.Context, params Crea
 	var pending Pending
 	err := repository.db.WithContext(ctx).Transaction(func(transaction *gorm.DB) error {
 		var role user.Role
-		if err := transaction.Where("LOWER(name) = ?", "admin").First(&role).Error; err != nil {
+		if err := transaction.Where("LOWER(name) = ?", "manager").First(&role).Error; err != nil {
 			return err
 		}
 		outletID := uuid.NewString()
@@ -42,6 +42,16 @@ func (repository *GORMRepository) CreatePending(ctx context.Context, params Crea
 			"first_name": params.OwnerName, "last_name": "", "date_of_birth": params.OwnerDateOfBirth,
 			"is_active": false, "created_at": now, "updated_at": now,
 		}).Error; err != nil {
+			return err
+		}
+		if err := transaction.Exec(`INSERT INTO order_types (outlet_id, code, name, sort_order)
+			VALUES (?, 'free_table', 'Bebas Pilih Meja', 10),
+			       (?, 'table_order', 'Pesan Meja', 20),
+			       (?, 'takeaway', 'Bungkus', 30),
+			       (?, 'delivery', 'Pesan Antar', 40),
+			       (?, 'reservation', 'Reservasi', 50),
+			       (?, 'online_delivery', 'Ojek Online', 60)`,
+			outletID, outletID, outletID, outletID, outletID, outletID).Error; err != nil {
 			return err
 		}
 		pending = Pending{

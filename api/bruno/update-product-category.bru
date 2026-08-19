@@ -1,0 +1,20 @@
+meta {
+  name: Update Product Category (Manager)
+  type: http
+  seq: 18
+}
+
+patch {
+  url: {{baseUrl}}/dikasa/v1/product-types/food/categories/{{categoryId}}
+  body: json
+  auth: bearer
+}
+auth:bearer {
+  token: {{accessToken}}
+}
+body:json {
+  { "name": "Nasi Spesial", "sort_order": 10, "is_active": true }
+}
+assert {
+  res.status: eq 200
+}

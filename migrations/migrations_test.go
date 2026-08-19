@@ -45,7 +45,57 @@ func TestRegistrationOTPMigrationStoresOnlyHashedCodes(t *testing.T) {
 	}
 }
 
-func TestMakefileAppliesAndRollsBackRegistrationMigration(t *testing.T) {
+func TestCashSessionMigrationStoresOpeningCashPerOutlet(t *testing.T) {
+	content, err := os.ReadFile("000003_create_cash_sessions.up.sql")
+	if err != nil {
+		t.Fatalf("read cash session migration: %v", err)
+	}
+	sql := strings.ToLower(string(content))
+	for _, fragment := range []string{
+		"create table cash_sessions", "outlet_id uuid not null", "user_id uuid not null",
+		"opening_cash bigint not null", "check (opening_cash >= 0", "foreign key (outlet_id)",
+		"foreign key (user_id)", "cash_sessions_outlet_open_uidx", "where status = 'open'",
+	} {
+		if !strings.Contains(sql, fragment) {
+			t.Errorf("cash session migration must contain %q", fragment)
+		}
+	}
+}
+
+func TestCatalogMigrationCreatesOutletScopedMenuAndDefaults(t *testing.T) {
+	content, err := os.ReadFile("000004_create_catalog.up.sql")
+	if err != nil {
+		t.Fatalf("read catalog migration: %v", err)
+	}
+	sql := strings.ToLower(string(content))
+	for _, fragment := range []string{
+		"create table product_types", "create table product_categories", "create table products", "create table order_types",
+		"product_type_id uuid not null", "category_id uuid not null", "outlet_id uuid not null", "price bigint not null",
+		"image_url text", "image_object_name text", "foreign key (category_id, outlet_id)",
+		"insert into product_types", "'food'", "'drink'", "'additional'",
+		"'free_table'", "'table_order'", "'takeaway'", "'delivery'", "'reservation'", "'online_delivery'",
+		"update users", "lower(r.name) = 'admin'", "lower(m.name) = 'manager'",
+	} {
+		if !strings.Contains(sql, fragment) {
+			t.Errorf("catalog migration must contain %q", fragment)
+		}
+	}
+}
+
+func TestUserProfileMigrationAddsAvatarStorageReferences(t *testing.T) {
+	content, err := os.ReadFile("000005_add_user_profile_avatar.up.sql")
+	if err != nil {
+		t.Fatalf("read user profile migration: %v", err)
+	}
+	sql := strings.ToLower(string(content))
+	for _, fragment := range []string{"alter table users", "avatar_url text", "avatar_object_name text"} {
+		if !strings.Contains(sql, fragment) {
+			t.Errorf("user profile migration must contain %q", fragment)
+		}
+	}
+}
+
+func TestMakefileAppliesAndRollsBackMigrationsInOrder(t *testing.T) {
 	content, err := os.ReadFile("../Makefile")
 	if err != nil {
 		t.Fatalf("read Makefile: %v", err)
@@ -54,6 +104,12 @@ func TestMakefileAppliesAndRollsBackRegistrationMigration(t *testing.T) {
 	for _, migration := range []string{
 		"migrations/000002_add_registration_otp.up.sql",
 		"migrations/000002_add_registration_otp.down.sql",
+		"migrations/000003_create_cash_sessions.up.sql",
+		"migrations/000003_create_cash_sessions.down.sql",
+		"migrations/000004_create_catalog.up.sql",
+		"migrations/000004_create_catalog.down.sql",
+		"migrations/000005_add_user_profile_avatar.up.sql",
+		"migrations/000005_add_user_profile_avatar.down.sql",
 	} {
 		if !strings.Contains(makefile, migration) {
 			t.Errorf("Makefile must run %s", migration)
@@ -61,5 +117,14 @@ func TestMakefileAppliesAndRollsBackRegistrationMigration(t *testing.T) {
 	}
 	if strings.Index(makefile, "000002_add_registration_otp.down.sql") > strings.Index(makefile, "000001_create_identity_tables.down.sql") {
 		t.Fatal("migrate-down must roll back registration before identity tables")
+	}
+	if strings.Index(makefile, "000003_create_cash_sessions.down.sql") > strings.Index(makefile, "000002_add_registration_otp.down.sql") {
+		t.Fatal("migrate-down must roll back cash sessions before registration")
+	}
+	if strings.Index(makefile, "000004_create_catalog.down.sql") > strings.Index(makefile, "000003_create_cash_sessions.down.sql") {
+		t.Fatal("migrate-down must roll back catalog before cash sessions")
+	}
+	if strings.Index(makefile, "000005_add_user_profile_avatar.down.sql") > strings.Index(makefile, "000004_create_catalog.down.sql") {
+		t.Fatal("migrate-down must roll back user profile before catalog")
 	}
 }

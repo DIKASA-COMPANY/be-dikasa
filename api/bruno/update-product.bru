@@ -1,0 +1,27 @@
+meta {
+  name: Update Product (Manager)
+  type: http
+  seq: 16
+}
+
+patch {
+  url: {{baseUrl}}/dikasa/v1/products/{{productId}}
+  body: multipartForm
+  auth: bearer
+}
+auth:bearer {
+  token: {{accessToken}}
+}
+body:multipart-form {
+  name: Nasi Goreng Spesial
+  category_id: {{categoryId}}
+  price: 25000
+  description: Versi terbaru
+  is_highlighted: true
+  sort_order: 10
+  is_active: true
+  remove_image: false
+}
+assert {
+  res.status: eq 200
+}

@@ -15,6 +15,102 @@ components:
         - code
         - message
       type: object
+    CategoriesOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/CategoryData"
+          type:
+            - array
+            - "null"
+      required:
+        - data
+      type: object
+    CategoryData:
+      additionalProperties: false
+      properties:
+        id:
+          format: uuid
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        sort_order:
+          format: int64
+          type: integer
+      required:
+        - id
+        - name
+        - sort_order
+        - is_active
+      type: object
+    CategoryOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/CategoryData"
+      required:
+        - data
+      type: object
+    CategoryRequest:
+      additionalProperties: false
+      properties:
+        is_active:
+          type: boolean
+        name:
+          type: string
+        sort_order:
+          format: int64
+          type: integer
+      required:
+        - name
+        - sort_order
+        - is_active
+      type: object
+    ChangePINRequest:
+      additionalProperties: false
+      properties:
+        current_pin:
+          maxLength: 6
+          minLength: 6
+          pattern: ^[0-9]{6}$
+          type: string
+        new_pin:
+          maxLength: 6
+          minLength: 6
+          pattern: ^[0-9]{6}$
+          type: string
+        new_pin_confirmation:
+          maxLength: 6
+          minLength: 6
+          pattern: ^[0-9]{6}$
+          type: string
+      required:
+        - new_pin
+        - new_pin_confirmation
+      type: object
+    ChangePasswordRequest:
+      additionalProperties: false
+      properties:
+        current_password:
+          maxLength: 72
+          minLength: 8
+          type: string
+        new_password:
+          maxLength: 72
+          minLength: 8
+          type: string
+        new_password_confirmation:
+          maxLength: 72
+          minLength: 8
+          type: string
+      required:
+        - current_password
+        - new_password
+        - new_password_confirmation
+      type: object
     ConfirmOTPRequest:
       additionalProperties: false
       properties:
@@ -125,6 +221,23 @@ components:
         - expires_in
         - firebase_uid
       type: object
+    MetaStruct:
+      additionalProperties: false
+      properties:
+        page:
+          format: int64
+          type: integer
+        page_size:
+          format: int64
+          type: integer
+        total:
+          format: int64
+          type: integer
+      required:
+        - page
+        - page_size
+        - total
+      type: object
     OTPResponse:
       additionalProperties: false
       properties:
@@ -154,9 +267,190 @@ components:
         - otp_expires_in
         - resend_available_in
       type: object
+    OpenRequest:
+      additionalProperties: false
+      properties:
+        opening_cash:
+          examples:
+            - 500000
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+      required:
+        - opening_cash
+      type: object
+    OrderTypeData:
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        icon_key:
+          type: string
+        id:
+          format: uuid
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        sort_order:
+          format: int64
+          type: integer
+      required:
+        - id
+        - code
+        - name
+        - sort_order
+        - is_active
+      type: object
+    OrderTypeOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/OrderTypeData"
+      required:
+        - data
+      type: object
+    OrderTypeRequest:
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        icon_key:
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        sort_order:
+          format: int64
+          type: integer
+      required:
+        - code
+        - name
+        - sort_order
+        - is_active
+      type: object
+    OrderTypesOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/OrderTypeData"
+          type:
+            - array
+            - "null"
+      required:
+        - data
+      type: object
+    ProductData:
+      additionalProperties: false
+      properties:
+        category:
+          $ref: "#/components/schemas/CategoryData"
+        description:
+          type: string
+        id:
+          format: uuid
+          type: string
+        image_url:
+          format: uri
+          type: string
+        is_active:
+          type: boolean
+        is_highlighted:
+          type: boolean
+        name:
+          type: string
+        price:
+          format: int64
+          minimum: 0
+          type: integer
+        product_type:
+          enum:
+            - food
+            - drink
+            - additional
+          type: string
+        sort_order:
+          format: int64
+          type: integer
+      required:
+        - id
+        - name
+        - price
+        - description
+        - is_highlighted
+        - sort_order
+        - is_active
+        - category
+        - product_type
+      type: object
+    ProductOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/ProductData"
+      required:
+        - data
+      type: object
+    ProductTypeData:
+      additionalProperties: false
+      properties:
+        code:
+          enum:
+            - food
+            - drink
+            - additional
+          type: string
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+        sort_order:
+          format: int64
+          type: integer
+      required:
+        - id
+        - code
+        - name
+        - sort_order
+      type: object
+    ProductTypesOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/ProductTypeData"
+          type:
+            - array
+            - "null"
+      required:
+        - data
+      type: object
+    ProductsOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/ProductData"
+          type:
+            - array
+            - "null"
+        meta:
+          $ref: "#/components/schemas/MetaStruct"
+      required:
+        - data
+        - meta
+      type: object
     Profile:
       additionalProperties: false
       properties:
+        avatar_url:
+          format: uri
+          type: string
         email:
           type: string
         first_name:
@@ -290,6 +584,57 @@ components:
       required:
         - email
       type: object
+    SessionData:
+      additionalProperties: false
+      properties:
+        closed_at:
+          format: date-time
+          type: string
+        closing_cash:
+          examples:
+            - 750000
+          format: int64
+          type: integer
+        id:
+          format: uuid
+          type: string
+        opened_at:
+          format: date-time
+          type: string
+        opening_cash:
+          examples:
+            - 500000
+          format: int64
+          type: integer
+        outlet_id:
+          format: uuid
+          type: string
+        status:
+          enum:
+            - open
+            - closed
+          examples:
+            - open
+          type: string
+        user_id:
+          format: uuid
+          type: string
+      required:
+        - id
+        - outlet_id
+        - user_id
+        - opening_cash
+        - status
+        - opened_at
+      type: object
+    SessionResponse:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/SessionData"
+      required:
+        - data
+      type: object
     StatusError:
       additionalProperties: false
       properties:
@@ -309,6 +654,94 @@ info:
   version: 1.0.0
 openapi: 3.1.0
 paths:
+  /cash-sessions:
+    post:
+      description: Mencatat kas awal Rupiah untuk membuka satu sesi kas pada outlet user. Hanya satu sesi boleh aktif per outlet.
+      operationId: open-cash-session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Membuka sesi kas
+      tags:
+        - Sesi Kas
+  /cash-sessions/current:
+    get:
+      description: Mengambil sesi kas yang sedang aktif pada outlet user terautentikasi.
+      operationId: get-current-cash-session
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Mengambil sesi kas aktif
+      tags:
+        - Sesi Kas
   /health:
     get:
       description: Memastikan API berjalan dan Firebase ID token berhasil diverifikasi.
@@ -398,6 +831,1096 @@ paths:
       summary: Masuk ke aplikasi
       tags:
         - Autentikasi
+  /order-types:
+    get:
+      operationId: list-order-types
+      parameters:
+        - explode: false
+          in: query
+          name: include_inactive
+          schema:
+            default: false
+            type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderTypesOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Daftar jenis order
+      tags:
+        - Jenis Order
+    post:
+      description: Khusus manager pada outlet terautentikasi.
+      operationId: create-order-type
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderTypeRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderTypeOutputBody"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Membuat jenis order
+      tags:
+        - Jenis Order
+  /order-types/{order_type_id}:
+    delete:
+      description: Khusus manager; operasi ini melakukan soft delete.
+      operationId: delete-order-type
+      parameters:
+        - in: path
+          name: order_type_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Menonaktifkan jenis order
+      tags:
+        - Jenis Order
+    patch:
+      description: Khusus manager pada outlet pemilik data.
+      operationId: update-order-type
+      parameters:
+        - in: path
+          name: order_type_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderTypeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderTypeOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Memperbarui jenis order
+      tags:
+        - Jenis Order
+  /product-types:
+    get:
+      operationId: list-product-types
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductTypesOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Daftar tipe produk
+      tags:
+        - Katalog
+  /product-types/{product_type}/categories:
+    get:
+      operationId: list-product-categories
+      parameters:
+        - in: path
+          name: product_type
+          required: true
+          schema:
+            enum:
+              - food
+              - drink
+              - additional
+            type: string
+        - explode: false
+          in: query
+          name: include_inactive
+          schema:
+            default: false
+            type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoriesOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Daftar kategori sesuai tipe produk
+      tags:
+        - Katalog
+    post:
+      description: Khusus manager pada outlet terautentikasi.
+      operationId: create-product-category
+      parameters:
+        - in: path
+          name: product_type
+          required: true
+          schema:
+            enum:
+              - food
+              - drink
+              - additional
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryOutputBody"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Membuat kategori
+      tags:
+        - Katalog
+  /product-types/{product_type}/categories/{category_id}:
+    delete:
+      description: Khusus manager; ditolak bila kategori masih memiliki produk aktif.
+      operationId: delete-product-category
+      parameters:
+        - in: path
+          name: product_type
+          required: true
+          schema:
+            enum:
+              - food
+              - drink
+              - additional
+            type: string
+        - in: path
+          name: category_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Menonaktifkan kategori
+      tags:
+        - Katalog
+    patch:
+      description: Khusus manager. Kategori dengan produk aktif tidak dapat dinonaktifkan.
+      operationId: update-product-category
+      parameters:
+        - in: path
+          name: product_type
+          required: true
+          schema:
+            enum:
+              - food
+              - drink
+              - additional
+            type: string
+        - in: path
+          name: category_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Memperbarui kategori
+      tags:
+        - Katalog
+  /products:
+    get:
+      description: User outlet melihat produk aktif. Mencari nama produk secara case-insensitive dan partial melalui searchByProductName; include_inactive hanya untuk manager.
+      operationId: list-products
+      parameters:
+        - explode: false
+          in: query
+          name: product_type
+          schema:
+            enum:
+              - food
+              - drink
+              - additional
+            type: string
+        - explode: false
+          in: query
+          name: category_id
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: searchByProductName
+          schema:
+            maxLength: 100
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 30
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: include_inactive
+          schema:
+            default: false
+            type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductsOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Daftar produk POS
+      tags:
+        - Katalog
+    post:
+      description: Khusus manager. Multipart dengan gambar PNG/JPEG opsional maksimal 3 MiB.
+      operationId: create-product
+      requestBody:
+        content:
+          multipart/form-data:
+            encoding:
+              category_id:
+                contentType: text/plain
+              description:
+                contentType: text/plain
+              image:
+                contentType: image/png,image/jpeg
+              is_active:
+                contentType: text/plain
+              is_highlighted:
+                contentType: text/plain
+              name:
+                contentType: text/plain
+              price:
+                contentType: text/plain
+              remove_image:
+                contentType: text/plain
+              sort_order:
+                contentType: text/plain
+            schema:
+              properties:
+                category_id:
+                  format: uuid
+                  type: string
+                description:
+                  type: string
+                image:
+                  contentEncoding: binary
+                  contentMediaType: application/octet-stream
+                  format: binary
+                  type: string
+                is_active:
+                  type: boolean
+                is_highlighted:
+                  type: boolean
+                name:
+                  maxLength: 150
+                  type: string
+                price:
+                  format: int64
+                  minimum: 0
+                  type: integer
+                remove_image:
+                  type: boolean
+                sort_order:
+                  format: int64
+                  type: integer
+              required:
+                - name
+                - category_id
+                - price
+              type: object
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductOutputBody"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Membuat produk
+      tags:
+        - Katalog
+  /products/{product_id}:
+    delete:
+      description: Khusus manager. Soft delete mempertahankan object gambar.
+      operationId: delete-product
+      parameters:
+        - in: path
+          name: product_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Menonaktifkan produk
+      tags:
+        - Katalog
+    get:
+      operationId: get-product
+      parameters:
+        - in: path
+          name: product_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: include_inactive
+          schema:
+            default: false
+            type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Detail produk
+      tags:
+        - Katalog
+    patch:
+      description: Khusus manager. Multipart dapat mengganti image atau menghapusnya dengan remove_image.
+      operationId: update-product
+      parameters:
+        - in: path
+          name: product_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            encoding:
+              category_id:
+                contentType: text/plain
+              description:
+                contentType: text/plain
+              image:
+                contentType: image/png,image/jpeg
+              is_active:
+                contentType: text/plain
+              is_highlighted:
+                contentType: text/plain
+              name:
+                contentType: text/plain
+              price:
+                contentType: text/plain
+              remove_image:
+                contentType: text/plain
+              sort_order:
+                contentType: text/plain
+            schema:
+              properties:
+                category_id:
+                  format: uuid
+                  type: string
+                description:
+                  type: string
+                image:
+                  contentEncoding: binary
+                  contentMediaType: application/octet-stream
+                  format: binary
+                  type: string
+                is_active:
+                  type: boolean
+                is_highlighted:
+                  type: boolean
+                name:
+                  maxLength: 150
+                  type: string
+                price:
+                  format: int64
+                  minimum: 0
+                  type: integer
+                remove_image:
+                  type: boolean
+                sort_order:
+                  format: int64
+                  type: integer
+              type: object
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Memperbarui produk
+      tags:
+        - Katalog
   /register:
     post:
       description: Membuat outlet dan akun nonaktif, lalu mengirim OTP lima digit ke email verifikasi yang dipilih.
@@ -617,6 +2140,186 @@ paths:
                 $ref: "#/components/schemas/StatusError"
           description: Terjadi kesalahan pada server.
       summary: Mengambil profil user aktif
+      tags:
+        - User
+    patch:
+      description: Multipart parsial untuk nama, nomor HP, email, dan avatar PNG/JPEG opsional maksimal 3 MiB. Role serta outlet tetap read-only.
+      operationId: update-current-user
+      requestBody:
+        content:
+          multipart/form-data:
+            encoding:
+              avatar:
+                contentType: image/png,image/jpeg
+              email:
+                contentType: text/plain
+              first_name:
+                contentType: text/plain
+              last_name:
+                contentType: text/plain
+              phone_number:
+                contentType: text/plain
+              remove_avatar:
+                contentType: text/plain
+            schema:
+              properties:
+                avatar:
+                  contentEncoding: binary
+                  contentMediaType: application/octet-stream
+                  format: binary
+                  type: string
+                email:
+                  maxLength: 254
+                  type: string
+                first_name:
+                  maxLength: 100
+                  type: string
+                last_name:
+                  maxLength: 100
+                  type: string
+                phone_number:
+                  maxLength: 30
+                  minLength: 8
+                  type: string
+                remove_avatar:
+                  type: boolean
+              type: object
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Memperbarui profil sendiri
+      tags:
+        - User
+  /users/me/password:
+    patch:
+      description: Memverifikasi password lama lalu menyimpan bcrypt hash password baru.
+      operationId: change-current-user-password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Mengubah password akun
+      tags:
+        - User
+  /users/me/pin:
+    patch:
+      description: PIN terdiri dari enam digit. current_pin wajib bila akun sudah memiliki PIN.
+      operationId: change-current-user-pin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePINRequest"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Mengubah PIN akun
       tags:
         - User
 security:

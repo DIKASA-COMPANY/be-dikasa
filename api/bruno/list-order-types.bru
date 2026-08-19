@@ -1,0 +1,20 @@
+meta {
+  name: List Order Types
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/order-types
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+}

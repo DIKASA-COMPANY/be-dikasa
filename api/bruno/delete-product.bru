@@ -1,0 +1,17 @@
+meta {
+  name: Delete Product (Manager)
+  type: http
+  seq: 17
+}
+
+delete {
+  url: {{baseUrl}}/dikasa/v1/products/{{productId}}
+  body: none
+  auth: bearer
+}
+auth:bearer {
+  token: {{accessToken}}
+}
+assert {
+  res.status: eq 204
+}

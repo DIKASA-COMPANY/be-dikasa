@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -27,6 +28,38 @@ func newRepositoryMock(t *testing.T) (*GORMRepository, sqlmock.Sqlmock) {
 		t.Fatalf("open gorm: %v", err)
 	}
 	return NewGORMRepository(db), mock
+}
+
+func TestGORMRepositoryUpdatesCredentialHashes(t *testing.T) {
+	repository, mock := newRepositoryMock(t)
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "users" SET "pin_hash"=\$1,"updated_at"=\$2 WHERE id = \$3`).
+		WithArgs("pin-hash", sqlmock.AnyArg(), "user-id").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	if err := repository.UpdatePINHash(context.Background(), "user-id", "pin-hash"); err != nil {
+		t.Fatalf("update PIN: %v", err)
+	}
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "users" SET "password_hash"=\$1,"updated_at"=\$2 WHERE id = \$3`).
+		WithArgs("password-hash", sqlmock.AnyArg(), "user-id").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	if err := repository.UpdatePasswordHash(context.Background(), "user-id", "password-hash"); err != nil {
+		t.Fatalf("update password: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGORMRepositoryMapsDuplicateProfileFieldsToConflict(t *testing.T) {
+	repository, mock := newRepositoryMock(t)
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "users" SET`).WillReturnError(&pgconn.PgError{Code: "23505", ConstraintName: "users_email_lower_uidx"})
+	mock.ExpectRollback()
+	err := repository.UpdateProfile(context.Background(), &User{ID: "user-id", FirstName: "Jane", PhoneNumber: "0812345678"})
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("expected profile conflict, got %v", err)
+	}
 }
 
 func TestGORMRepositoryFindByIdentifier(t *testing.T) {

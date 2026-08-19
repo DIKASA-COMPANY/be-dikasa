@@ -7,11 +7,19 @@ type authenticatedUserIDKey struct{}
 // Service menyediakan use case user tanpa bergantung pada transport HTTP.
 type Service struct {
 	repository Repository
+	settings   SettingsRepository
+	hasher     CredentialHasher
+	avatars    AvatarStore
 }
 
 // NewService membuat user service dengan repository yang diberikan.
-func NewService(repository Repository) *Service {
-	return &Service{repository: repository}
+func NewService(repository Repository, options ...ServiceOption) *Service {
+	service := &Service{repository: repository, hasher: bcryptCredentialHasher{}, avatars: NewDisabledAvatarStore()}
+	service.settings, _ = repository.(SettingsRepository)
+	for _, option := range options {
+		option(service)
+	}
+	return service
 }
 
 // FindByIdentifier mencari user menggunakan username, nomor HP, atau email.

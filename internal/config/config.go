@@ -5,6 +5,15 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/joho/godotenv"
+)
+
+const (
+	// ImageStorageDisabled keeps image uploads unavailable while allowing image-less products.
+	ImageStorageDisabled = "disabled"
+	// ImageStorageFirebase stores validated product images in Firebase Storage.
+	ImageStorageFirebase = "firebase"
 )
 
 // Lookup mendapatkan nilai environment berdasarkan nama variable.
@@ -12,8 +21,10 @@ type Lookup func(key string) string
 
 // Firebase memuat konfigurasi Firebase Authentication.
 type Firebase struct {
-	ProjectID string
-	WebAPIKey string
+	ProjectID     string
+	WebAPIKey     string
+	StorageMode   string
+	StorageBucket string
 }
 
 // Mail memuat konfigurasi SMTP untuk pengiriman OTP.
@@ -40,8 +51,10 @@ func Load(lookup Lookup) (Config, error) {
 		Port:        strings.TrimSpace(lookup("PORT")),
 		DatabaseURL: strings.TrimSpace(lookup("DATABASE_URL")),
 		Firebase: Firebase{
-			ProjectID: strings.TrimSpace(lookup("FIREBASE_PROJECT_ID")),
-			WebAPIKey: strings.TrimSpace(lookup("FIREBASE_WEB_API_KEY")),
+			ProjectID:     strings.TrimSpace(lookup("FIREBASE_PROJECT_ID")),
+			WebAPIKey:     strings.TrimSpace(lookup("FIREBASE_WEB_API_KEY")),
+			StorageMode:   strings.ToLower(strings.TrimSpace(lookup("IMAGE_STORAGE_MODE"))),
+			StorageBucket: strings.TrimSpace(lookup("FIREBASE_STORAGE_BUCKET")),
 		},
 		OTPSecret: strings.TrimSpace(lookup("OTP_SECRET")),
 		Mail: Mail{
@@ -51,6 +64,9 @@ func Load(lookup Lookup) (Config, error) {
 	}
 	if configuration.Port == "" {
 		configuration.Port = "8080"
+	}
+	if configuration.Firebase.StorageMode == "" {
+		configuration.Firebase.StorageMode = ImageStorageDisabled
 	}
 
 	missing := make([]string, 0, 7)
@@ -62,6 +78,12 @@ func Load(lookup Lookup) (Config, error) {
 	}
 	if configuration.Firebase.WebAPIKey == "" {
 		missing = append(missing, "FIREBASE_WEB_API_KEY")
+	}
+	if configuration.Firebase.StorageMode != ImageStorageDisabled && configuration.Firebase.StorageMode != ImageStorageFirebase {
+		return Config{}, fmt.Errorf("IMAGE_STORAGE_MODE harus disabled atau firebase")
+	}
+	if configuration.Firebase.StorageMode == ImageStorageFirebase && configuration.Firebase.StorageBucket == "" {
+		missing = append(missing, "FIREBASE_STORAGE_BUCKET")
 	}
 	if len(configuration.OTPSecret) < 32 {
 		missing = append(missing, "OTP_SECRET (minimal 32 karakter)")
@@ -88,4 +110,9 @@ func Load(lookup Lookup) (Config, error) {
 	}
 	configuration.Mail.Port = smtpPort
 	return configuration, nil
+}
+
+// LoadDotEnv loads development variables without replacing values already present in the process environment.
+func LoadDotEnv(path string) error {
+	return godotenv.Load(path)
 }

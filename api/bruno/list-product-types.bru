@@ -1,0 +1,20 @@
+meta {
+  name: List Product Types
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/product-types
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+}

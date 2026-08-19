@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"be-dikasa/internal/auth"
+	"be-dikasa/internal/cash"
+	"be-dikasa/internal/catalog"
 	"be-dikasa/internal/registration"
 	sharederrors "be-dikasa/internal/shared/errors"
 	sharedresponse "be-dikasa/internal/shared/response"
@@ -25,6 +27,8 @@ const apiPrefix = "/dikasa/v1"
 // Dependencies berisi handler feature dan layanan token yang dibutuhkan router.
 type Dependencies struct {
 	AuthHandler         *auth.Handler
+	CashHandler         *cash.Handler
+	CatalogHandler      *catalog.Handler
 	RegistrationHandler *registration.Handler
 	UserHandler         *user.Handler
 	TokenVerifier       TokenVerifier
@@ -69,6 +73,10 @@ func NewRouter(dependencies Dependencies) *gin.Engine {
 	group := router.Group(apiPrefix)
 	api := humagin.NewWithGroup(router, group, configuration)
 	auth.RegisterRoutes(api, dependencies.AuthHandler)
+	cash.RegisterRoutes(api, dependencies.CashHandler)
+	if dependencies.CatalogHandler != nil {
+		catalog.RegisterRoutes(api, dependencies.CatalogHandler)
+	}
 	registration.RegisterRoutes(api, dependencies.RegistrationHandler)
 	user.RegisterRoutes(api, dependencies.UserHandler)
 	registerSystemRoutes(api)
@@ -169,6 +177,7 @@ func localizeOpenAPIResponses(openAPI *huma.OpenAPI) {
 		"403": "Akses ditolak.", "404": "Data tidak ditemukan.",
 		"405": "Metode HTTP tidak diizinkan.", "409": "Terjadi konflik data.",
 		"410": "Data sudah kedaluwarsa.",
+		"413": "Ukuran payload terlalu besar.",
 		"415": "Tipe konten tidak didukung.", "422": "Validasi data gagal.",
 		"429": "Terlalu banyak permintaan.", "500": "Terjadi kesalahan pada server.",
 		"502": "Layanan eksternal bermasalah.", "503": "Layanan sementara tidak tersedia.",

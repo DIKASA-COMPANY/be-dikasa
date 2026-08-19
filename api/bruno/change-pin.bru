@@ -1,0 +1,27 @@
+meta {
+  name: Change My PIN
+  type: http
+  seq: 24
+}
+
+patch {
+  url: {{baseUrl}}/dikasa/v1/users/me/pin
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "current_pin": "123456",
+    "new_pin": "654321",
+    "new_pin_confirmation": "654321"
+  }
+}
+
+assert {
+  res.status: eq 204
+}

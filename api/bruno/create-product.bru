@@ -1,0 +1,29 @@
+meta {
+  name: Create Product Without Image (Manager)
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/products
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:multipart-form {
+  name: Nasi Goreng
+  category_id: {{categoryId}}
+  price: 21000
+  description: Nasi goreng spesial
+  is_highlighted: false
+  sort_order: 10
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isNotEmpty
+}

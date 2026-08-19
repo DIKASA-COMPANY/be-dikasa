@@ -1,0 +1,22 @@
+meta {
+  name: Current Cash Session
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/cash-sessions/current
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.id: isNotEmpty
+  res.body.data.outlet_id: isNotEmpty
+  res.body.data.status: eq open
+}

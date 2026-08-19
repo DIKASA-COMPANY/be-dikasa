@@ -1,0 +1,17 @@
+meta {
+  name: Delete Product Category (Manager)
+  type: http
+  seq: 19
+}
+
+delete {
+  url: {{baseUrl}}/dikasa/v1/product-types/food/categories/{{categoryId}}
+  body: none
+  auth: bearer
+}
+auth:bearer {
+  token: {{accessToken}}
+}
+assert {
+  res.status: eq 204
+}

@@ -1,0 +1,24 @@
+meta {
+  name: Create Food Category (Manager)
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/product-types/food/categories
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  { "name": "Nasi", "sort_order": 10, "is_active": true }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isNotEmpty
+}
