@@ -16,6 +16,7 @@ import (
 	"be-dikasa/internal/config"
 	"be-dikasa/internal/database"
 	"be-dikasa/internal/registration"
+	"be-dikasa/internal/reservation"
 	"be-dikasa/internal/server"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
@@ -89,11 +90,14 @@ func run(ctx context.Context) error {
 		Password: configuration.Mail.Password, From: configuration.Mail.From,
 	})
 	registrationService := registration.NewService(registrationRepository, registrationMailer, registration.NewHMACHasher(configuration.OTPSecret))
+	reservationRepository := reservation.NewGORMRepository(postgres)
+	reservationService := reservation.NewService(reservationRepository, userRepository, time.Now)
 	router := server.NewRouter(server.Dependencies{
 		AuthHandler:         auth.NewHandler(authService, sharedvalidator.New()),
 		CashHandler:         cash.NewHandler(cashService, sharedvalidator.New()),
 		CatalogHandler:      catalog.NewHandler(catalogService, sharedvalidator.New()),
 		RegistrationHandler: registration.NewHandler(registrationService, sharedvalidator.New()),
+		ReservationHandler:  reservation.NewHandler(reservationService, sharedvalidator.New()),
 		UserHandler:         user.NewHandler(userService),
 		TokenVerifier:       firebaseAuth,
 	})

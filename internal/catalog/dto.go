@@ -4,16 +4,46 @@ import "github.com/danielgtaylor/huma/v2"
 
 // ProductData adalah representasi produk untuk client POS.
 type ProductData struct {
-	ID              string       `json:"id" format:"uuid"`
-	Name            string       `json:"name"`
-	Price           int64        `json:"price" minimum:"0"`
-	Description     string       `json:"description"`
-	ImageURL        *string      `json:"image_url,omitempty" format:"uri"`
-	IsHighlighted   bool         `json:"is_highlighted"`
-	SortOrder       int          `json:"sort_order"`
-	IsActive        bool         `json:"is_active"`
-	Category        CategoryData `json:"category"`
-	ProductTypeCode string       `json:"product_type" enum:"food,drink,additional"`
+	ID                 string               `json:"id" format:"uuid"`
+	Name               string               `json:"name"`
+	Price              int64                `json:"price" minimum:"0"`
+	SellingPrice       int64                `json:"selling_price" minimum:"0"`
+	OnlineSellingPrice *int64               `json:"online_selling_price,omitempty" minimum:"0"`
+	CostPrice          *int64               `json:"cost_price,omitempty" minimum:"0"`
+	OnlineCostPrice    *int64               `json:"online_cost_price,omitempty" minimum:"0"`
+	StockStatus        string               `json:"stock_status" enum:"available,out_of_stock"`
+	Description        string               `json:"description"`
+	ImageURL           *string              `json:"image_url,omitempty" format:"uri"`
+	IsHighlighted      bool                 `json:"is_highlighted"`
+	SortOrder          int                  `json:"sort_order"`
+	IsActive           bool                 `json:"is_active"`
+	Category           CategoryData         `json:"category"`
+	ProductTypeCode    string               `json:"product_type" enum:"food,drink,additional"`
+	Variations         []ProductVariantData `json:"variations"`
+}
+
+// ProductVariantData adalah variasi harga produk untuk client.
+type ProductVariantData struct {
+	ID                 string `json:"id" format:"uuid"`
+	Name               string `json:"name"`
+	SellingPrice       int64  `json:"selling_price" minimum:"0"`
+	OnlineSellingPrice *int64 `json:"online_selling_price,omitempty" minimum:"0"`
+	CostPrice          *int64 `json:"cost_price,omitempty" minimum:"0"`
+	OnlineCostPrice    *int64 `json:"online_cost_price,omitempty" minimum:"0"`
+	StockStatus        string `json:"stock_status" enum:"available,out_of_stock"`
+	SortOrder          int    `json:"sort_order"`
+	IsActive           bool   `json:"is_active"`
+}
+
+// ProductVariantRequest adalah item JSON pada field multipart variations.
+type ProductVariantRequest struct {
+	Name               string `json:"name" maxLength:"100"`
+	SellingPrice       int64  `json:"selling_price" minimum:"0"`
+	OnlineSellingPrice *int64 `json:"online_selling_price,omitempty" minimum:"0"`
+	CostPrice          *int64 `json:"cost_price,omitempty" minimum:"0"`
+	OnlineCostPrice    *int64 `json:"online_cost_price,omitempty" minimum:"0"`
+	StockStatus        string `json:"stock_status" enum:"available,out_of_stock"`
+	SortOrder          int    `json:"sort_order"`
 }
 
 // ProductTypeData adalah item tab tipe produk global.
@@ -44,28 +74,40 @@ type OrderTypeData struct {
 
 // ProductForm adalah field multipart untuk create dan update produk.
 type ProductForm struct {
-	Name          string        `form:"name" required:"true" maxLength:"150"`
-	CategoryID    string        `form:"category_id" required:"true" format:"uuid"`
-	Price         int64         `form:"price" required:"true" minimum:"0"`
-	Description   string        `form:"description" required:"false"`
-	IsHighlighted bool          `form:"is_highlighted" required:"false"`
-	SortOrder     int           `form:"sort_order" required:"false"`
-	IsActive      bool          `form:"is_active" required:"false"`
-	RemoveImage   bool          `form:"remove_image" required:"false"`
-	Image         huma.FormFile `form:"image" required:"false" contentType:"image/png,image/jpeg"`
+	Name               string                  `form:"name" required:"true" maxLength:"150"`
+	CategoryID         string                  `form:"category_id" required:"true" format:"uuid"`
+	ProductType        string                  `form:"product_type" required:"true" enum:"food,drink,additional"`
+	SellingPrice       int64                   `form:"selling_price" required:"true" minimum:"0"`
+	OnlineSellingPrice int64                   `form:"online_selling_price" required:"false" minimum:"0"`
+	CostPrice          int64                   `form:"cost_price" required:"false" minimum:"0"`
+	OnlineCostPrice    int64                   `form:"online_cost_price" required:"false" minimum:"0"`
+	StockStatus        string                  `form:"stock_status" required:"true" enum:"available,out_of_stock"`
+	Variations         []ProductVariantRequest `form:"variations" required:"false" contentType:"application/json"`
+	Description        string                  `form:"description" required:"false"`
+	IsHighlighted      bool                    `form:"is_highlighted" required:"false"`
+	SortOrder          int                     `form:"sort_order" required:"false"`
+	IsActive           bool                    `form:"is_active" required:"false"`
+	RemoveImage        bool                    `form:"remove_image" required:"false"`
+	Image              huma.FormFile           `form:"image" required:"false" contentType:"image/png,image/jpeg"`
 }
 
 // ProductPatchForm adalah field multipart opsional untuk PATCH produk.
 type ProductPatchForm struct {
-	Name          string        `form:"name" required:"false" maxLength:"150"`
-	CategoryID    string        `form:"category_id" required:"false" format:"uuid"`
-	Price         int64         `form:"price" required:"false" minimum:"0"`
-	Description   string        `form:"description" required:"false"`
-	IsHighlighted bool          `form:"is_highlighted" required:"false"`
-	SortOrder     int           `form:"sort_order" required:"false"`
-	IsActive      bool          `form:"is_active" required:"false"`
-	RemoveImage   bool          `form:"remove_image" required:"false"`
-	Image         huma.FormFile `form:"image" required:"false" contentType:"image/png,image/jpeg"`
+	Name               string                  `form:"name" required:"false" maxLength:"150"`
+	CategoryID         string                  `form:"category_id" required:"false" format:"uuid"`
+	ProductType        string                  `form:"product_type" required:"false" enum:"food,drink,additional"`
+	SellingPrice       int64                   `form:"selling_price" required:"false" minimum:"0"`
+	OnlineSellingPrice int64                   `form:"online_selling_price" required:"false" minimum:"0"`
+	CostPrice          int64                   `form:"cost_price" required:"false" minimum:"0"`
+	OnlineCostPrice    int64                   `form:"online_cost_price" required:"false" minimum:"0"`
+	StockStatus        string                  `form:"stock_status" required:"false" enum:"available,out_of_stock"`
+	Variations         []ProductVariantRequest `form:"variations" required:"false" contentType:"application/json"`
+	Description        string                  `form:"description" required:"false"`
+	IsHighlighted      bool                    `form:"is_highlighted" required:"false"`
+	SortOrder          int                     `form:"sort_order" required:"false"`
+	IsActive           bool                    `form:"is_active" required:"false"`
+	RemoveImage        bool                    `form:"remove_image" required:"false"`
+	Image              huma.FormFile           `form:"image" required:"false" contentType:"image/png,image/jpeg"`
 }
 
 // ListProductsInput adalah query filter endpoint list produk.

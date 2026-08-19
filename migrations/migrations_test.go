@@ -95,6 +95,24 @@ func TestUserProfileMigrationAddsAvatarStorageReferences(t *testing.T) {
 	}
 }
 
+func TestReservationAndProductCommerceMigrationMatchesPOSForms(t *testing.T) {
+	content, err := os.ReadFile("000006_add_reservations_and_product_commerce.up.sql")
+	if err != nil {
+		t.Fatalf("read reservation migration: %v", err)
+	}
+	sql := strings.ToLower(string(content))
+	for _, fragment := range []string{
+		"alter table products", "stock_status", "online_selling_price", "cost_price", "online_cost_price",
+		"create table product_variants", "create table reservation_types", "create table restaurant_tables",
+		"create table reservations", "customer_name", "customer_contact", "reserved_at",
+		"print_reservation", "send_reservation", "created_by", "reservations_table_time_uidx",
+	} {
+		if !strings.Contains(sql, fragment) {
+			t.Errorf("reservation/product migration must contain %q", fragment)
+		}
+	}
+}
+
 func TestMakefileAppliesAndRollsBackMigrationsInOrder(t *testing.T) {
 	content, err := os.ReadFile("../Makefile")
 	if err != nil {
@@ -110,6 +128,8 @@ func TestMakefileAppliesAndRollsBackMigrationsInOrder(t *testing.T) {
 		"migrations/000004_create_catalog.down.sql",
 		"migrations/000005_add_user_profile_avatar.up.sql",
 		"migrations/000005_add_user_profile_avatar.down.sql",
+		"migrations/000006_add_reservations_and_product_commerce.up.sql",
+		"migrations/000006_add_reservations_and_product_commerce.down.sql",
 	} {
 		if !strings.Contains(makefile, migration) {
 			t.Errorf("Makefile must run %s", migration)
@@ -126,5 +146,8 @@ func TestMakefileAppliesAndRollsBackMigrationsInOrder(t *testing.T) {
 	}
 	if strings.Index(makefile, "000005_add_user_profile_avatar.down.sql") > strings.Index(makefile, "000004_create_catalog.down.sql") {
 		t.Fatal("migrate-down must roll back user profile before catalog")
+	}
+	if strings.Index(makefile, "000006_add_reservations_and_product_commerce.down.sql") > strings.Index(makefile, "000005_add_user_profile_avatar.down.sql") {
+		t.Fatal("migrate-down must roll back reservations before user profile")
 	}
 }

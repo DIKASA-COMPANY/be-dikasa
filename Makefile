@@ -24,8 +24,10 @@ migrate-up:
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f migrations/000003_create_cash_sessions.up.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f migrations/000004_create_catalog.up.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f migrations/000005_add_user_profile_avatar.up.sql
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f migrations/000006_add_reservations_and_product_commerce.up.sql
 
 migrate-down:
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f migrations/000006_add_reservations_and_product_commerce.down.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f migrations/000005_add_user_profile_avatar.down.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f migrations/000004_create_catalog.down.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f migrations/000003_create_cash_sessions.down.sql

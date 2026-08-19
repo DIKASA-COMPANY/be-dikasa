@@ -6,6 +6,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"os"
 	"strings"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"be-dikasa/internal/cash"
 	"be-dikasa/internal/catalog"
 	"be-dikasa/internal/registration"
+	"be-dikasa/internal/reservation"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
 )
@@ -108,11 +110,45 @@ func (routerCatalogProvider) UpdateOrderType(context.Context, string, string, ca
 }
 func (routerCatalogProvider) DeleteOrderType(context.Context, string, string) error { return nil }
 
+type routerReservationProvider struct{}
+
+func (routerReservationProvider) ListTypes(context.Context, string) ([]reservation.Type, error) {
+	return []reservation.Type{{ID: "11111111-1111-4111-8111-111111111111", Code: "regular", Name: "Reguler"}}, nil
+}
+func (routerReservationProvider) ListTables(context.Context, string, *time.Time) ([]reservation.Table, error) {
+	return nil, nil
+}
+func (routerReservationProvider) CreateTable(context.Context, string, reservation.TableMutation) (*reservation.Table, error) {
+	return &reservation.Table{}, nil
+}
+func (routerReservationProvider) UpdateTable(context.Context, string, string, reservation.TableMutation) (*reservation.Table, error) {
+	return &reservation.Table{}, nil
+}
+func (routerReservationProvider) DeleteTable(context.Context, string, string) error { return nil }
+func (routerReservationProvider) List(context.Context, string, reservation.Filter) ([]reservation.Reservation, int64, error) {
+	return nil, 0, nil
+}
+func (routerReservationProvider) Get(context.Context, string, string) (*reservation.Reservation, error) {
+	return &reservation.Reservation{}, nil
+}
+func (routerReservationProvider) Create(_ context.Context, userID string, mutation reservation.Mutation) (*reservation.Reservation, error) {
+	return &reservation.Reservation{ID: "33333333-3333-4333-8333-333333333333", CreatedBy: userID,
+		CustomerName: mutation.CustomerName, CustomerContact: mutation.CustomerContact, ReservedAt: mutation.ReservedAt,
+		Notes: mutation.Notes, PrintReservation: mutation.PrintReservation, SendReservation: mutation.SendReservation,
+		Status: reservation.StatusBooked, ReservationType: reservation.Type{ID: mutation.ReservationTypeID, Code: "regular", Name: "Reguler"},
+		RestaurantTable: reservation.Table{ID: mutation.RestaurantTableID, Name: "Meja 1", Capacity: 4, IsActive: true}}, nil
+}
+func (routerReservationProvider) Update(context.Context, string, string, reservation.Mutation) (*reservation.Reservation, error) {
+	return &reservation.Reservation{}, nil
+}
+func (routerReservationProvider) Cancel(context.Context, string, string) error { return nil }
+
 func newTestRouter() http.Handler {
 	userService := user.NewService(routerUserRepository{})
 	return NewRouter(Dependencies{
 		AuthHandler:         auth.NewHandler(routerSignInProvider{}, sharedvalidator.New()),
 		RegistrationHandler: registration.NewHandler(routerRegistrationProvider{}, sharedvalidator.New()),
+		ReservationHandler:  reservation.NewHandler(routerReservationProvider{}, sharedvalidator.New()),
 		UserHandler:         user.NewHandler(userService),
 		CashHandler:         cash.NewHandler(routerCashProvider{}, sharedvalidator.New()),
 		CatalogHandler:      catalog.NewHandler(routerCatalogProvider{}, sharedvalidator.New()),
@@ -206,6 +242,54 @@ func TestRouterPublishesSelfProfileUpdate(t *testing.T) {
 	router.ServeHTTP(response, request)
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"first_name":"Janet"`) {
 		t.Fatalf("unexpected profile update: %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestRouterPublishesReservationCreation(t *testing.T) {
+	router := newTestRouter()
+	request := httptest.NewRequest(http.MethodPost, "/dikasa/v1/reservations", strings.NewReader(`{"customer_name":"Sari","customer_contact":"081234567890","reservation_type_id":"11111111-1111-4111-8111-111111111111","restaurant_table_id":"22222222-2222-4222-8222-222222222222","reserved_at":"2026-12-31T19:00:00+07:00","notes":"Dekat jendela","print_reservation":true,"send_reservation":false}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer valid-token")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated || !strings.Contains(response.Body.String(), `"status":"booked"`) || !strings.Contains(response.Body.String(), `"customer_name":"Sari"`) {
+		t.Fatalf("unexpected reservation response: %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestRouterAcceptsFigmaProductMultipartWithJSONVariations(t *testing.T) {
+	router := newTestRouter()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for name, value := range map[string]string{
+		"name": "Nasi Goreng", "category_id": "11111111-1111-4111-8111-111111111111",
+		"product_type": "food", "selling_price": "21000", "online_selling_price": "23000",
+		"cost_price": "12000", "stock_status": "available", "description": "Pedas",
+	} {
+		if err := writer.WriteField(name, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	header := textproto.MIMEHeader{}
+	header.Set("Content-Disposition", `form-data; name="variations"`)
+	header.Set("Content-Type", "application/json")
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = part.Write([]byte(`[{"name":"Jumbo","selling_price":28000,"stock_status":"available","sort_order":10}]`)); err != nil {
+		t.Fatal(err)
+	}
+	if err = writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/dikasa/v1/products", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	request.Header.Set("Authorization", "Bearer valid-token")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("unexpected product response: %d %s", response.Code, response.Body.String())
 	}
 }
 

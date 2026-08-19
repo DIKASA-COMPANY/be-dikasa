@@ -66,7 +66,7 @@ func (repository *GORMRepository) ListProducts(ctx context.Context, filter Produ
 		return []Product{}, 0, nil
 	}
 	var values []Product
-	err := query.Preload("Category.ProductType").Order("products.sort_order ASC, products.name ASC").
+	err := query.Preload("Category.ProductType").Preload("Variants", "is_active = ?", true).Order("products.sort_order ASC, products.name ASC").
 		Offset((filter.Page - 1) * filter.PageSize).Limit(filter.PageSize).Find(&values).Error
 	return values, total, err
 }
@@ -74,7 +74,9 @@ func (repository *GORMRepository) ListProducts(ctx context.Context, filter Produ
 // FindProduct mengambil produk hanya dari outlet yang diminta.
 func (repository *GORMRepository) FindProduct(ctx context.Context, outletID, id string, includeInactive bool) (*Product, error) {
 	var value Product
-	query := repository.db.WithContext(ctx).Preload("Category.ProductType").Where("products.outlet_id = ? AND products.id = ?", outletID, id)
+	query := repository.db.WithContext(ctx).Preload("Category.ProductType").Preload("Variants", func(db *gorm.DB) *gorm.DB {
+		return db.Order("sort_order ASC, name ASC")
+	}).Where("products.outlet_id = ? AND products.id = ?", outletID, id)
 	if !includeInactive {
 		query = query.Where("products.is_active = ?", true)
 	}
@@ -84,23 +86,44 @@ func (repository *GORMRepository) FindProduct(ctx context.Context, outletID, id 
 
 // CreateProduct menyimpan produk tanpa menulis ulang struct relasi.
 func (repository *GORMRepository) CreateProduct(ctx context.Context, value *Product) error {
-	return normalizeRepositoryError(repository.db.WithContext(ctx).Omit("Category").Create(value).Error)
+	err := repository.db.WithContext(ctx).Transaction(func(transaction *gorm.DB) error {
+		if err := transaction.Omit("Category", "Variants").Create(value).Error; err != nil {
+			return err
+		}
+		if len(value.Variants) > 0 {
+			return transaction.Create(&value.Variants).Error
+		}
+		return nil
+	})
+	return normalizeRepositoryError(err)
 }
 
 // UpdateProduct memperbarui field produk yang dikelola manager.
 func (repository *GORMRepository) UpdateProduct(ctx context.Context, value *Product) error {
-	result := repository.db.WithContext(ctx).Model(&Product{}).Where("id = ? AND outlet_id = ?", value.ID, value.OutletID).Updates(map[string]any{
-		"category_id": value.CategoryID, "name": value.Name, "price": value.Price, "description": value.Description,
-		"image_url": value.ImageURL, "image_object_name": value.ImageObjectName, "is_highlighted": value.IsHighlighted,
-		"sort_order": value.SortOrder, "is_active": value.IsActive,
+	err := repository.db.WithContext(ctx).Transaction(func(transaction *gorm.DB) error {
+		result := transaction.Model(&Product{}).Where("id = ? AND outlet_id = ?", value.ID, value.OutletID).Updates(map[string]any{
+			"category_id": value.CategoryID, "name": value.Name, "price": value.Price, "online_selling_price": value.OnlineSellingPrice,
+			"cost_price": value.CostPrice, "online_cost_price": value.OnlineCostPrice, "stock_status": value.StockStatus,
+			"description": value.Description, "image_url": value.ImageURL, "image_object_name": value.ImageObjectName,
+			"is_highlighted": value.IsHighlighted, "sort_order": value.SortOrder, "is_active": value.IsActive,
+		})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		if value.ReplaceVariants {
+			if err := transaction.Model(&ProductVariant{}).Where("product_id = ? AND outlet_id = ? AND is_active = ?", value.ID, value.OutletID, true).Update("is_active", false).Error; err != nil {
+				return err
+			}
+			if len(value.Variants) > 0 {
+				return transaction.Create(&value.Variants).Error
+			}
+		}
+		return nil
 	})
-	if result.Error != nil {
-		return normalizeRepositoryError(result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return normalizeRepositoryError(err)
 }
 
 // SoftDeleteProduct menonaktifkan produk tanpa menghapus gambar maupun record.

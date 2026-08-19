@@ -1,0 +1,24 @@
+meta {
+  name: Update Reservation
+  type: http
+  seq: 27
+}
+
+patch {
+  url: {{baseUrl}}/dikasa/v1/reservations/{{reservationId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {"notes":"Dekat pintu","status":"confirmed","send_reservation":true}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.status: eq confirmed
+}

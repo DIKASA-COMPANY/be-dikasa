@@ -1,0 +1,20 @@
+meta {
+  name: List Reservations
+  type: http
+  seq: 25
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/reservations?page=1&page_size=30
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+}

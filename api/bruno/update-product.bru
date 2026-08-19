@@ -15,7 +15,11 @@ auth:bearer {
 body:multipart-form {
   name: Nasi Goreng Spesial
   category_id: {{categoryId}}
-  price: 25000
+  product_type: food
+  selling_price: 25000
+  online_selling_price: 27000
+  stock_status: available
+  variations: [{"name":"Jumbo","selling_price":30000,"stock_status":"available","sort_order":10}]
   description: Versi terbaru
   is_highlighted: true
   sort_order: 10

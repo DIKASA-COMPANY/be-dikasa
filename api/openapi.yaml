@@ -349,6 +349,10 @@ components:
       properties:
         category:
           $ref: "#/components/schemas/CategoryData"
+        cost_price:
+          format: int64
+          minimum: 0
+          type: integer
         description:
           type: string
         id:
@@ -363,6 +367,14 @@ components:
           type: boolean
         name:
           type: string
+        online_cost_price:
+          format: int64
+          minimum: 0
+          type: integer
+        online_selling_price:
+          format: int64
+          minimum: 0
+          type: integer
         price:
           format: int64
           minimum: 0
@@ -373,19 +385,37 @@ components:
             - drink
             - additional
           type: string
+        selling_price:
+          format: int64
+          minimum: 0
+          type: integer
         sort_order:
           format: int64
           type: integer
+        stock_status:
+          enum:
+            - available
+            - out_of_stock
+          type: string
+        variations:
+          items:
+            $ref: "#/components/schemas/ProductVariantData"
+          type:
+            - array
+            - "null"
       required:
         - id
         - name
         - price
+        - selling_price
+        - stock_status
         - description
         - is_highlighted
         - sort_order
         - is_active
         - category
         - product_type
+        - variations
       type: object
     ProductOutputBody:
       additionalProperties: false
@@ -429,6 +459,84 @@ components:
             - "null"
       required:
         - data
+      type: object
+    ProductVariantData:
+      additionalProperties: false
+      properties:
+        cost_price:
+          format: int64
+          minimum: 0
+          type: integer
+        id:
+          format: uuid
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        online_cost_price:
+          format: int64
+          minimum: 0
+          type: integer
+        online_selling_price:
+          format: int64
+          minimum: 0
+          type: integer
+        selling_price:
+          format: int64
+          minimum: 0
+          type: integer
+        sort_order:
+          format: int64
+          type: integer
+        stock_status:
+          enum:
+            - available
+            - out_of_stock
+          type: string
+      required:
+        - id
+        - name
+        - selling_price
+        - stock_status
+        - sort_order
+        - is_active
+      type: object
+    ProductVariantRequest:
+      additionalProperties: false
+      properties:
+        cost_price:
+          format: int64
+          minimum: 0
+          type: integer
+        name:
+          maxLength: 100
+          type: string
+        online_cost_price:
+          format: int64
+          minimum: 0
+          type: integer
+        online_selling_price:
+          format: int64
+          minimum: 0
+          type: integer
+        selling_price:
+          format: int64
+          minimum: 0
+          type: integer
+        sort_order:
+          format: int64
+          type: integer
+        stock_status:
+          enum:
+            - available
+            - out_of_stock
+          type: string
+      required:
+        - name
+        - selling_price
+        - stock_status
+        - sort_order
       type: object
     ProductsOutputBody:
       additionalProperties: false
@@ -584,6 +692,149 @@ components:
       required:
         - email
       type: object
+    ReservationData:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          format: uuid
+          type: string
+        customer_contact:
+          type: string
+        customer_name:
+          type: string
+        id:
+          format: uuid
+          type: string
+        notes:
+          type: string
+        print_reservation:
+          type: boolean
+        reservation_type:
+          $ref: "#/components/schemas/TypeData"
+        reserved_at:
+          format: date-time
+          type: string
+        restaurant_table:
+          $ref: "#/components/schemas/TableData"
+        send_reservation:
+          type: boolean
+        status:
+          enum:
+            - booked
+            - confirmed
+            - seated
+            - completed
+            - cancelled
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - customer_name
+        - customer_contact
+        - reserved_at
+        - notes
+        - print_reservation
+        - send_reservation
+        - status
+        - reservation_type
+        - restaurant_table
+        - created_by
+        - created_at
+        - updated_at
+      type: object
+    ReservationOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/ReservationData"
+      required:
+        - data
+      type: object
+    ReservationPatchRequest:
+      additionalProperties: false
+      properties:
+        customer_contact:
+          type: string
+        customer_name:
+          type: string
+        notes:
+          maxLength: 1000
+          type: string
+        print_reservation:
+          type: boolean
+        reservation_type_id:
+          format: uuid
+          type: string
+        reserved_at:
+          format: date-time
+          type: string
+        restaurant_table_id:
+          format: uuid
+          type: string
+        send_reservation:
+          type: boolean
+        status:
+          enum:
+            - booked
+            - confirmed
+            - seated
+            - completed
+            - cancelled
+          type: string
+      type: object
+    ReservationRequest:
+      additionalProperties: false
+      properties:
+        customer_contact:
+          type: string
+        customer_name:
+          type: string
+        notes:
+          maxLength: 1000
+          type: string
+        print_reservation:
+          type: boolean
+        reservation_type_id:
+          format: uuid
+          type: string
+        reserved_at:
+          format: date-time
+          type: string
+        restaurant_table_id:
+          format: uuid
+          type: string
+        send_reservation:
+          type: boolean
+      required:
+        - customer_name
+        - customer_contact
+        - reservation_type_id
+        - restaurant_table_id
+        - reserved_at
+        - notes
+        - print_reservation
+        - send_reservation
+      type: object
+    ReservationsOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/ReservationData"
+          type:
+            - array
+            - "null"
+        meta:
+          $ref: "#/components/schemas/MetaStruct"
+      required:
+        - data
+        - meta
+      type: object
     SessionData:
       additionalProperties: false
       properties:
@@ -642,6 +893,100 @@ components:
           $ref: "#/components/schemas/Body"
       required:
         - error
+      type: object
+    TableData:
+      additionalProperties: false
+      properties:
+        capacity:
+          format: int64
+          minimum: 1
+          type: integer
+        id:
+          format: uuid
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        sort_order:
+          format: int64
+          type: integer
+      required:
+        - id
+        - name
+        - capacity
+        - sort_order
+        - is_active
+      type: object
+    TableOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/TableData"
+      required:
+        - data
+      type: object
+    TableRequest:
+      additionalProperties: false
+      properties:
+        capacity:
+          format: int64
+          type: integer
+        is_active:
+          type: boolean
+        name:
+          type: string
+        sort_order:
+          format: int64
+          type: integer
+      required:
+        - name
+        - capacity
+        - sort_order
+        - is_active
+      type: object
+    TablesOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/TableData"
+          type:
+            - array
+            - "null"
+      required:
+        - data
+      type: object
+    TypeData:
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+        sort_order:
+          format: int64
+          type: integer
+      required:
+        - id
+        - code
+        - name
+        - sort_order
+      type: object
+    TypesOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/TypeData"
+          type:
+            - array
+            - "null"
+      required:
+        - data
       type: object
   securitySchemes:
     firebaseBearer:
@@ -1549,13 +1894,15 @@ paths:
       tags:
         - Katalog
     post:
-      description: Khusus manager. Multipart dengan gambar PNG/JPEG opsional maksimal 3 MiB.
+      description: Khusus manager. Multipart memakai product_type, selling_price, stock_status, harga online/modal opsional, variations JSON opsional, dan gambar PNG/JPEG opsional maksimal 3 MiB.
       operationId: create-product
       requestBody:
         content:
           multipart/form-data:
             encoding:
               category_id:
+                contentType: text/plain
+              cost_price:
                 contentType: text/plain
               description:
                 contentType: text/plain
@@ -1567,17 +1914,31 @@ paths:
                 contentType: text/plain
               name:
                 contentType: text/plain
-              price:
+              online_cost_price:
+                contentType: text/plain
+              online_selling_price:
+                contentType: text/plain
+              product_type:
                 contentType: text/plain
               remove_image:
                 contentType: text/plain
+              selling_price:
+                contentType: text/plain
               sort_order:
                 contentType: text/plain
+              stock_status:
+                contentType: text/plain
+              variations:
+                contentType: application/json
             schema:
               properties:
                 category_id:
                   format: uuid
                   type: string
+                cost_price:
+                  format: int64
+                  minimum: 0
+                  type: integer
                 description:
                   type: string
                 image:
@@ -1592,19 +1953,46 @@ paths:
                 name:
                   maxLength: 150
                   type: string
-                price:
+                online_cost_price:
                   format: int64
                   minimum: 0
                   type: integer
+                online_selling_price:
+                  format: int64
+                  minimum: 0
+                  type: integer
+                product_type:
+                  enum:
+                    - food
+                    - drink
+                    - additional
+                  type: string
                 remove_image:
                   type: boolean
+                selling_price:
+                  format: int64
+                  minimum: 0
+                  type: integer
                 sort_order:
                   format: int64
                   type: integer
+                stock_status:
+                  enum:
+                    - available
+                    - out_of_stock
+                  type: string
+                variations:
+                  items:
+                    $ref: "#/components/schemas/ProductVariantRequest"
+                  type:
+                    - array
+                    - "null"
               required:
                 - name
                 - category_id
-                - price
+                - product_type
+                - selling_price
+                - stock_status
               type: object
       responses:
         "201":
@@ -1797,7 +2185,7 @@ paths:
       tags:
         - Katalog
     patch:
-      description: Khusus manager. Multipart dapat mengganti image atau menghapusnya dengan remove_image.
+      description: Khusus manager. Multipart parsial dapat mengganti daftar variations, mengganti image, atau menghapus image dengan remove_image.
       operationId: update-product
       parameters:
         - in: path
@@ -1812,6 +2200,8 @@ paths:
             encoding:
               category_id:
                 contentType: text/plain
+              cost_price:
+                contentType: text/plain
               description:
                 contentType: text/plain
               image:
@@ -1822,17 +2212,31 @@ paths:
                 contentType: text/plain
               name:
                 contentType: text/plain
-              price:
+              online_cost_price:
+                contentType: text/plain
+              online_selling_price:
+                contentType: text/plain
+              product_type:
                 contentType: text/plain
               remove_image:
                 contentType: text/plain
+              selling_price:
+                contentType: text/plain
               sort_order:
                 contentType: text/plain
+              stock_status:
+                contentType: text/plain
+              variations:
+                contentType: application/json
             schema:
               properties:
                 category_id:
                   format: uuid
                   type: string
+                cost_price:
+                  format: int64
+                  minimum: 0
+                  type: integer
                 description:
                   type: string
                 image:
@@ -1847,15 +2251,40 @@ paths:
                 name:
                   maxLength: 150
                   type: string
-                price:
+                online_cost_price:
                   format: int64
                   minimum: 0
                   type: integer
+                online_selling_price:
+                  format: int64
+                  minimum: 0
+                  type: integer
+                product_type:
+                  enum:
+                    - food
+                    - drink
+                    - additional
+                  type: string
                 remove_image:
                   type: boolean
+                selling_price:
+                  format: int64
+                  minimum: 0
+                  type: integer
                 sort_order:
                   format: int64
                   type: integer
+                stock_status:
+                  enum:
+                    - available
+                    - out_of_stock
+                  type: string
+                variations:
+                  items:
+                    $ref: "#/components/schemas/ProductVariantRequest"
+                  type:
+                    - array
+                    - "null"
               type: object
       responses:
         "200":
@@ -2110,6 +2539,565 @@ paths:
       summary: Mengirim ulang OTP registrasi
       tags:
         - Registrasi
+  /reservation-types:
+    get:
+      operationId: list-reservation-types
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TypesOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Daftar jenis reservasi
+      tags:
+        - Reservasi
+  /reservations:
+    get:
+      operationId: list-reservations
+      parameters:
+        - explode: false
+          in: query
+          name: date
+          schema:
+            pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+            type: string
+        - explode: false
+          in: query
+          name: status
+          schema:
+            enum:
+              - booked
+              - confirmed
+              - seated
+              - completed
+              - cancelled
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 30
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationsOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Daftar reservasi outlet
+      tags:
+        - Reservasi
+    post:
+      description: Manager dan cashier dapat membuat reservasi. Flag print/send disimpan sebagai instruksi dan tidak menjalankan provider eksternal.
+      operationId: create-reservation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationOutputBody"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Membuat reservasi
+      tags:
+        - Reservasi
+  /reservations/{reservation_id}:
+    delete:
+      description: Mengubah status menjadi cancelled dan melakukan soft delete.
+      operationId: cancel-reservation
+      parameters:
+        - in: path
+          name: reservation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Membatalkan reservasi
+      tags:
+        - Reservasi
+    get:
+      operationId: get-reservation
+      parameters:
+        - in: path
+          name: reservation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Detail reservasi
+      tags:
+        - Reservasi
+    patch:
+      operationId: update-reservation
+      parameters:
+        - in: path
+          name: reservation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationPatchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Memperbarui reservasi
+      tags:
+        - Reservasi
+  /restaurant-tables:
+    get:
+      description: reservation_at opsional untuk hanya menampilkan meja yang tersedia pada waktu persis tersebut.
+      operationId: list-restaurant-tables
+      parameters:
+        - explode: false
+          in: query
+          name: reservation_at
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TablesOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Daftar meja restoran
+      tags:
+        - Reservasi
+    post:
+      description: Khusus manager.
+      operationId: create-restaurant-table
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TableRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableOutputBody"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Membuat meja restoran
+      tags:
+        - Reservasi
+  /restaurant-tables/{table_id}:
+    delete:
+      description: Khusus manager; soft delete.
+      operationId: delete-restaurant-table
+      parameters:
+        - in: path
+          name: table_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Menonaktifkan meja restoran
+      tags:
+        - Reservasi
+    patch:
+      description: Khusus manager.
+      operationId: update-restaurant-table
+      parameters:
+        - in: path
+          name: table_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TableRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Memperbarui meja restoran
+      tags:
+        - Reservasi
   /users/me:
     get:
       description: Mengambil profil PostgreSQL berdasarkan UID pada Firebase ID token.

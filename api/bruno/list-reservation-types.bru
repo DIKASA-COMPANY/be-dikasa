@@ -1,0 +1,20 @@
+meta {
+  name: List Reservation Types
+  type: http
+  seq: 20
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/reservation-types
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+}

@@ -14,6 +14,7 @@ import (
 	"be-dikasa/internal/cash"
 	"be-dikasa/internal/catalog"
 	"be-dikasa/internal/registration"
+	"be-dikasa/internal/reservation"
 	"be-dikasa/internal/server"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
@@ -108,6 +109,7 @@ func main() {
 		CashHandler:         cash.NewHandler(schemaCashProvider{}, sharedvalidator.New()),
 		CatalogHandler:      catalog.NewHandler(schemaCatalogProvider{}, sharedvalidator.New()),
 		RegistrationHandler: registration.NewHandler(schemaRegistrationProvider{}, sharedvalidator.New()),
+		ReservationHandler:  reservation.NewHandler(nil, sharedvalidator.New()),
 		UserHandler:         user.NewHandler(userService),
 	})
 	request := httptest.NewRequest(http.MethodGet, "/dikasa/v1/openapi.yaml", nil)

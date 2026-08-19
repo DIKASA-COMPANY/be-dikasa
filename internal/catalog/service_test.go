@@ -159,6 +159,23 @@ func TestCreateProductStorageDisabledOnlyRejectsImage(t *testing.T) {
 	}
 }
 
+func TestCreateProductStoresCommerceFieldsAndVariations(t *testing.T) {
+	repository := &fakeRepository{category: &ProductCategory{ID: "cat", OutletID: "outlet-a", ProductType: ProductType{Code: "food"}, IsActive: true}}
+	service := NewService(repository, fakeAccountFinder{account: account("manager")}, NewDisabledImageStore())
+	onlinePrice, costPrice := int64(25_000), int64(12_000)
+	created, err := service.CreateProduct(context.Background(), "user-a", ProductMutation{
+		Name: "Nasi Goreng", CategoryID: "cat", ProductType: "food", Price: 21_000,
+		OnlineSellingPrice: &onlinePrice, CostPrice: &costPrice, StockStatus: StockStatusAvailable,
+		Variations: []ProductVariantMutation{{Name: "Jumbo", Price: 28_000, StockStatus: StockStatusAvailable}},
+	})
+	if err != nil {
+		t.Fatalf("create commerce product: %v", err)
+	}
+	if created.OnlineSellingPrice == nil || *created.OnlineSellingPrice != onlinePrice || created.StockStatus != StockStatusAvailable || len(created.Variants) != 1 || created.Variants[0].OutletID != "outlet-a" {
+		t.Fatalf("unexpected product fields: %+v", created)
+	}
+}
+
 func TestCreateProductCleansNewImageWhenDatabaseFails(t *testing.T) {
 	repository := &fakeRepository{category: &ProductCategory{ID: "cat", OutletID: "outlet-a", ProductType: ProductType{Code: "food"}, IsActive: true}, createErr: errors.New("database unavailable")}
 	images := &fakeImageStore{stored: StoredImage{URL: "https://image", ObjectName: "new-object"}}

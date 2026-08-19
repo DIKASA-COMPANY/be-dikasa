@@ -1,0 +1,19 @@
+meta {
+  name: Delete Restaurant Table (Manager)
+  type: http
+  seq: 29
+}
+
+delete {
+  url: {{baseUrl}}/dikasa/v1/restaurant-tables/{{restaurantTableId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 204
+}

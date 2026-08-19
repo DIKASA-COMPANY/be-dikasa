@@ -96,7 +96,10 @@ func (service *Service) CreateProduct(ctx context.Context, userID string, mutati
 		return nil, err
 	}
 	mutation.Name = strings.TrimSpace(mutation.Name)
-	if mutation.Name == "" || mutation.CategoryID == "" || mutation.Price < 0 {
+	if mutation.StockStatus == "" {
+		mutation.StockStatus = StockStatusAvailable
+	}
+	if mutation.Name == "" || mutation.CategoryID == "" || mutation.Price < 0 || !validStockStatus(mutation.StockStatus) || invalidOptionalPrice(mutation.OnlineSellingPrice, mutation.CostPrice, mutation.OnlineCostPrice) {
 		return nil, ErrValidation
 	}
 	category, err := service.repository.FindCategory(ctx, outletID, mutation.CategoryID)
@@ -106,8 +109,17 @@ func (service *Service) CreateProduct(ctx context.Context, userID string, mutati
 	if !category.IsActive || (mutation.ProductType != "" && !strings.EqualFold(category.ProductType.Code, mutation.ProductType)) {
 		return nil, ErrCategoryMismatch
 	}
+	variants, err := productVariants(outletID, "", mutation.Variations)
+	if err != nil {
+		return nil, err
+	}
 	product := &Product{ID: uuid.NewString(), OutletID: outletID, CategoryID: category.ID, Name: mutation.Name, Price: mutation.Price,
-		Description: strings.TrimSpace(mutation.Description), IsHighlighted: mutation.IsHighlighted, SortOrder: mutation.SortOrder, IsActive: true, Category: *category}
+		OnlineSellingPrice: mutation.OnlineSellingPrice, CostPrice: mutation.CostPrice, OnlineCostPrice: mutation.OnlineCostPrice,
+		StockStatus: mutation.StockStatus, Description: strings.TrimSpace(mutation.Description), IsHighlighted: mutation.IsHighlighted,
+		SortOrder: mutation.SortOrder, IsActive: true, Category: *category, Variants: variants}
+	for index := range product.Variants {
+		product.Variants[index].ProductID = product.ID
+	}
 	if mutation.Image != nil {
 		stored, saveErr := service.images.Save(ctx, outletID, product.ID, mutation.Image)
 		if saveErr != nil {
@@ -132,9 +144,15 @@ func (service *Service) UpdateProduct(ctx context.Context, userID, productID str
 	if err != nil {
 		return nil, err
 	}
+	if mutation.Fields == nil && mutation.StockStatus == "" {
+		mutation.StockStatus = StockStatusAvailable
+	}
 	product, err := service.repository.FindProduct(ctx, outletID, productID, true)
 	if err != nil {
 		return nil, err
+	}
+	if product.StockStatus == "" {
+		product.StockStatus = StockStatusAvailable
 	}
 	isSet := func(field string) bool { return mutation.Fields == nil || mutation.Fields[field] }
 	categoryID := product.CategoryID
@@ -166,6 +184,28 @@ func (service *Service) UpdateProduct(ctx context.Context, userID, productID str
 	if isSet("price") {
 		product.Price = mutation.Price
 	}
+	if isSet("online_selling_price") {
+		product.OnlineSellingPrice = mutation.OnlineSellingPrice
+	}
+	if isSet("cost_price") {
+		product.CostPrice = mutation.CostPrice
+	}
+	if isSet("online_cost_price") {
+		product.OnlineCostPrice = mutation.OnlineCostPrice
+	}
+	if isSet("stock_status") {
+		product.StockStatus = mutation.StockStatus
+	}
+	if isSet("variations") {
+		product.Variants, err = productVariants(outletID, product.ID, mutation.Variations)
+		if err != nil {
+			if uploaded != nil {
+				_ = service.images.Delete(ctx, uploaded.ObjectName)
+			}
+			return nil, err
+		}
+		product.ReplaceVariants = true
+	}
 	if isSet("description") {
 		product.Description = strings.TrimSpace(mutation.Description)
 	}
@@ -178,7 +218,7 @@ func (service *Service) UpdateProduct(ctx context.Context, userID, productID str
 	if isSet("is_active") {
 		product.IsActive = mutation.IsActive
 	}
-	if product.Name == "" || product.Price < 0 {
+	if product.Name == "" || product.Price < 0 || !validStockStatus(product.StockStatus) || invalidOptionalPrice(product.OnlineSellingPrice, product.CostPrice, product.OnlineCostPrice) {
 		if uploaded != nil {
 			_ = service.images.Delete(ctx, uploaded.ObjectName)
 		}
@@ -194,6 +234,39 @@ func (service *Service) UpdateProduct(ctx context.Context, userID, productID str
 		_ = service.images.Delete(ctx, *oldObject)
 	}
 	return product, nil
+}
+
+func validStockStatus(value string) bool {
+	return value == StockStatusAvailable || value == StockStatusOutOfStock
+}
+
+func invalidOptionalPrice(values ...*int64) bool {
+	for _, value := range values {
+		if value != nil && *value < 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func productVariants(outletID, productID string, mutations []ProductVariantMutation) ([]ProductVariant, error) {
+	values := make([]ProductVariant, 0, len(mutations))
+	names := make(map[string]struct{}, len(mutations))
+	for _, mutation := range mutations {
+		name := strings.TrimSpace(mutation.Name)
+		key := strings.ToLower(name)
+		if name == "" || mutation.Price < 0 || !validStockStatus(mutation.StockStatus) || invalidOptionalPrice(mutation.OnlineSellingPrice, mutation.CostPrice, mutation.OnlineCostPrice) {
+			return nil, ErrValidation
+		}
+		if _, exists := names[key]; exists {
+			return nil, ErrValidation
+		}
+		names[key] = struct{}{}
+		values = append(values, ProductVariant{ID: uuid.NewString(), ProductID: productID, OutletID: outletID, Name: name,
+			Price: mutation.Price, OnlineSellingPrice: mutation.OnlineSellingPrice, CostPrice: mutation.CostPrice,
+			OnlineCostPrice: mutation.OnlineCostPrice, StockStatus: mutation.StockStatus, SortOrder: mutation.SortOrder, IsActive: true})
+	}
+	return values, nil
 }
 
 // DeleteProduct melakukan soft delete tanpa menghapus gambar.

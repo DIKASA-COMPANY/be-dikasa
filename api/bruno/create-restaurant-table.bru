@@ -1,0 +1,24 @@
+meta {
+  name: Create Restaurant Table (Manager)
+  type: http
+  seq: 21
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/restaurant-tables
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {"name":"Meja 1","capacity":4,"sort_order":10,"is_active":true}
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isNotEmpty
+}

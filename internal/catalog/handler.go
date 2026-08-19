@@ -97,8 +97,22 @@ func (handler *Handler) GetProduct(ctx context.Context, input *ProductIDInput) (
 	return output, nil
 }
 
-func productMutation(form *ProductForm) ProductMutation {
-	mutation := ProductMutation{Name: form.Name, CategoryID: form.CategoryID, Price: form.Price, Description: form.Description, IsHighlighted: form.IsHighlighted, SortOrder: form.SortOrder, IsActive: form.IsActive, RemoveImage: form.RemoveImage}
+func productMutation(input *ProductCreateInput) ProductMutation {
+	form := input.RawBody.Data()
+	mutation := ProductMutation{Name: form.Name, CategoryID: form.CategoryID, ProductType: form.ProductType, Price: form.SellingPrice,
+		StockStatus: form.StockStatus, Variations: variantMutations(form.Variations), Description: form.Description,
+		IsHighlighted: form.IsHighlighted, SortOrder: form.SortOrder, IsActive: form.IsActive, RemoveImage: form.RemoveImage}
+	if input.RawBody.Form != nil {
+		if _, ok := input.RawBody.Form.Value["online_selling_price"]; ok {
+			mutation.OnlineSellingPrice = &form.OnlineSellingPrice
+		}
+		if _, ok := input.RawBody.Form.Value["cost_price"]; ok {
+			mutation.CostPrice = &form.CostPrice
+		}
+		if _, ok := input.RawBody.Form.Value["online_cost_price"]; ok {
+			mutation.OnlineCostPrice = &form.OnlineCostPrice
+		}
+	}
 	if form.Image.IsSet {
 		mutation.Image = &ImageUpload{Reader: form.Image.File, Size: form.Image.Size, ContentType: form.Image.ContentType, Filename: form.Image.Filename}
 	}
@@ -113,7 +127,21 @@ func productPatchMutation(input *ProductMutationInput) ProductMutation {
 			fields[key] = true
 		}
 	}
-	mutation := ProductMutation{Name: form.Name, CategoryID: form.CategoryID, Price: form.Price, Description: form.Description, IsHighlighted: form.IsHighlighted, SortOrder: form.SortOrder, IsActive: form.IsActive, RemoveImage: form.RemoveImage, Fields: fields}
+	mutation := ProductMutation{Name: form.Name, CategoryID: form.CategoryID, ProductType: form.ProductType, Price: form.SellingPrice,
+		StockStatus: form.StockStatus, Variations: variantMutations(form.Variations), Description: form.Description,
+		IsHighlighted: form.IsHighlighted, SortOrder: form.SortOrder, IsActive: form.IsActive, RemoveImage: form.RemoveImage, Fields: fields}
+	if fields["online_selling_price"] {
+		mutation.OnlineSellingPrice = &form.OnlineSellingPrice
+	}
+	if fields["cost_price"] {
+		mutation.CostPrice = &form.CostPrice
+	}
+	if fields["online_cost_price"] {
+		mutation.OnlineCostPrice = &form.OnlineCostPrice
+	}
+	if fields["selling_price"] {
+		fields["price"] = true
+	}
 	if form.Image.IsSet {
 		mutation.Image = &ImageUpload{Reader: form.Image.File, Size: form.Image.Size, ContentType: form.Image.ContentType, Filename: form.Image.Filename}
 	}
@@ -126,7 +154,7 @@ func (handler *Handler) CreateProduct(ctx context.Context, input *ProductCreateI
 	if err != nil {
 		return nil, err
 	}
-	value, err := handler.provider.CreateProduct(ctx, userID, productMutation(input.RawBody.Data()))
+	value, err := handler.provider.CreateProduct(ctx, userID, productMutation(input))
 	if err != nil {
 		return nil, catalogStatusError(err)
 	}
@@ -307,7 +335,15 @@ func orderTypeData(value OrderType) OrderTypeData {
 	return OrderTypeData{ID: value.ID, Code: value.Code, Name: value.Name, IconKey: value.IconKey, SortOrder: value.SortOrder, IsActive: value.IsActive}
 }
 func productData(value Product) ProductData {
-	return ProductData{ID: value.ID, Name: value.Name, Price: value.Price, Description: value.Description, ImageURL: value.ImageURL, IsHighlighted: value.IsHighlighted, SortOrder: value.SortOrder, IsActive: value.IsActive, Category: categoryData(value.Category), ProductTypeCode: value.Category.ProductType.Code}
+	variations := make([]ProductVariantData, 0, len(value.Variants))
+	for _, variant := range value.Variants {
+		variations = append(variations, variantData(variant))
+	}
+	return ProductData{ID: value.ID, Name: value.Name, Price: value.Price, SellingPrice: value.Price,
+		OnlineSellingPrice: value.OnlineSellingPrice, CostPrice: value.CostPrice, OnlineCostPrice: value.OnlineCostPrice,
+		StockStatus: value.StockStatus, Description: value.Description, ImageURL: value.ImageURL,
+		IsHighlighted: value.IsHighlighted, SortOrder: value.SortOrder, IsActive: value.IsActive,
+		Category: categoryData(value.Category), ProductTypeCode: value.Category.ProductType.Code, Variations: variations}
 }
 func productsData(values []Product) []ProductData {
 	output := make([]ProductData, 0, len(values))
@@ -315,6 +351,22 @@ func productsData(values []Product) []ProductData {
 		output = append(output, productData(value))
 	}
 	return output
+}
+
+func variantMutations(values []ProductVariantRequest) []ProductVariantMutation {
+	output := make([]ProductVariantMutation, 0, len(values))
+	for _, value := range values {
+		output = append(output, ProductVariantMutation{Name: value.Name, Price: value.SellingPrice,
+			OnlineSellingPrice: value.OnlineSellingPrice, CostPrice: value.CostPrice, OnlineCostPrice: value.OnlineCostPrice,
+			StockStatus: value.StockStatus, SortOrder: value.SortOrder, IsActive: true})
+	}
+	return output
+}
+
+func variantData(value ProductVariant) ProductVariantData {
+	return ProductVariantData{ID: value.ID, Name: value.Name, SellingPrice: value.Price,
+		OnlineSellingPrice: value.OnlineSellingPrice, CostPrice: value.CostPrice, OnlineCostPrice: value.OnlineCostPrice,
+		StockStatus: value.StockStatus, SortOrder: value.SortOrder, IsActive: value.IsActive}
 }
 
 func catalogStatusError(err error) *sharederrors.StatusError {

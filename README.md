@@ -301,9 +301,28 @@ All application routes use the `/dikasa/v1` prefix.
 | `PATCH/DELETE` | `/product-types/{product_type}/categories/{category_id}` | Manager | Update or soft-delete a category |
 | `GET/POST` | `/order-types` | User / Manager | List or create outlet order types |
 | `PATCH/DELETE` | `/order-types/{order_type_id}` | Manager | Update or soft-delete an order type |
+| `GET` | `/reservation-types` | Firebase Bearer token | Return the seeded reservation-type dropdown |
+| `GET` | `/restaurant-tables` | Firebase Bearer token | Return active outlet tables; optionally filter availability by `reservation_at` |
+| `POST/PATCH/DELETE` | `/restaurant-tables` and `/restaurant-tables/{table_id}` | Manager | Configure outlet tables with soft delete |
+| `GET/POST` | `/reservations` | User outlet | List or create outlet reservations |
+| `GET/PATCH/DELETE` | `/reservations/{reservation_id}` | User outlet | Read, update, or cancel an outlet reservation |
 | `GET` | `/health` | Firebase Bearer token | Confirm the authenticated API path is healthy |
 | `GET` | `/docs` | Public | Serve Swagger UI |
 | `GET` | `/openapi.yaml` | Public | Serve the generated OpenAPI document |
+
+Product writes use `multipart/form-data`. The create form follows the product
+screen: `name`, `category_id`, `product_type`, `selling_price`, `stock_status`,
+optional `online_selling_price`, `cost_price`, `online_cost_price`, `description`,
+and `image`. The optional `variations` part is `application/json` containing an
+array with the same price and stock fields. `price` remains in responses as a
+compatibility alias of `selling_price`. “Simpan & Buat Lagi” repeats the same
+POST request; spreadsheet export is outside this create-product endpoint.
+
+Reservation creation stores customer/contact, a future RFC 3339
+`reserved_at`, reservation type, restaurant table, notes, and the print/send
+flags. A table cannot have two active reservations at the exact same timestamp.
+The flags are persisted instructions only; no message is sent until a separate
+communication provider is configured.
 
 Important OTP rules:
 
@@ -375,7 +394,8 @@ Additional project references:
 make migrate-down
 ```
 
-The user-profile migration is rolled back before catalog, cash sessions, registration, and identity to
+The reservation/product-commerce migration is rolled back before user profile,
+catalog, cash sessions, registration, and identity to
 preserve foreign-key ordering.
 
 ## Troubleshooting

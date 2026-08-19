@@ -1,0 +1,24 @@
+meta {
+  name: Create Reservation
+  type: http
+  seq: 24
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/reservations
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {"customer_name":"Sari","customer_contact":"081234567890","reservation_type_id":"{{reservationTypeId}}","restaurant_table_id":"{{restaurantTableId}}","reserved_at":"2099-12-31T19:00:00+07:00","notes":"Dekat jendela","print_reservation":true,"send_reservation":false}
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.status: eq booked
+}

@@ -1,0 +1,20 @@
+meta {
+  name: Get Reservation
+  type: http
+  seq: 26
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/reservations/{{reservationId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.id: isNotEmpty
+}

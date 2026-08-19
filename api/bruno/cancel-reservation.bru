@@ -1,0 +1,19 @@
+meta {
+  name: Cancel Reservation
+  type: http
+  seq: 28
+}
+
+delete {
+  url: {{baseUrl}}/dikasa/v1/reservations/{{reservationId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 204
+}

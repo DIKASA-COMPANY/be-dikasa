@@ -1,0 +1,20 @@
+meta {
+  name: List Available Restaurant Tables
+  type: http
+  seq: 22
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/restaurant-tables?reservation_at=2099-12-31T19%3A00%3A00%2B07%3A00
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+}
