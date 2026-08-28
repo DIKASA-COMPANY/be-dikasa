@@ -1,0 +1,21 @@
+meta {
+  name: Get Payment Tax Percentage
+  type: http
+  seq: 30
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/payments/tax-percentage
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.tax_percentage: isNumber
+}
+

@@ -1,0 +1,22 @@
+meta {
+  name: List Registered Customers
+  type: http
+  seq: 41
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/customers?search=Jane&page=1&page_size=30
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+  res.body.meta.page: eq 1
+  res.body.meta.page_size: eq 30
+}

@@ -17,8 +17,10 @@ import (
 	"be-dikasa/internal/auth"
 	"be-dikasa/internal/cash"
 	"be-dikasa/internal/catalog"
+	"be-dikasa/internal/payment"
 	"be-dikasa/internal/registration"
 	"be-dikasa/internal/reservation"
+	"be-dikasa/internal/sales"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
 )
@@ -67,6 +69,40 @@ func (routerCashProvider) Open(_ context.Context, userID string, openingCash int
 
 func (routerCashProvider) Current(_ context.Context, userID string) (*cash.Session, error) {
 	return routerCashProvider{}.Open(context.Background(), userID, 500_000)
+}
+
+type routerPaymentProvider struct{}
+
+func (routerPaymentProvider) TaxPercentage(context.Context, string) (float64, error) {
+	return 10, nil
+}
+func (routerPaymentProvider) ListWallets(context.Context, string, bool) ([]payment.Wallet, error) {
+	iconKey := "gopay"
+	return []payment.Wallet{{ID: "11111111-1111-4111-8111-111111111111", Code: "gopay", Name: "GoPay", IconKey: &iconKey, SortOrder: 10, IsActive: true}}, nil
+}
+func (routerPaymentProvider) CreateWallet(_ context.Context, _ string, mutation payment.WalletMutation) (*payment.Wallet, error) {
+	return &payment.Wallet{ID: "11111111-1111-4111-8111-111111111111", Code: mutation.Code, Name: mutation.Name, IconKey: mutation.IconKey, SortOrder: mutation.SortOrder, IsActive: true}, nil
+}
+func (routerPaymentProvider) UpdateWallet(_ context.Context, _ string, id string, mutation payment.WalletMutation) (*payment.Wallet, error) {
+	return &payment.Wallet{ID: id, Code: mutation.Code, Name: mutation.Name, IconKey: mutation.IconKey, SortOrder: mutation.SortOrder, IsActive: mutation.IsActive}, nil
+}
+func (routerPaymentProvider) DeleteWallet(context.Context, string, string) error { return nil }
+func (routerPaymentProvider) CreateTransaction(_ context.Context, userID string, mutation payment.TransactionMutation) (*payment.Transaction, error) {
+	items := make([]payment.TransactionItem, 0, len(mutation.Items))
+	totalQuantity := 0
+	for _, item := range mutation.Items {
+		totalQuantity += item.Quantity
+		items = append(items, payment.TransactionItem{ID: "44444444-4444-4444-8444-444444444444", ProductID: item.ProductID,
+			ProductVariantID: item.ProductVariantID, ProductName: item.ProductName, VariantName: item.VariantName,
+			UnitPrice: item.UnitPrice, Quantity: item.Quantity, Notes: item.Notes, LineTotal: item.LineTotal})
+	}
+	return &payment.Transaction{ID: "33333333-3333-4333-8333-333333333333", TransactionNumber: "TRX-TEST-001",
+		CashSessionID: "55555555-5555-4555-8555-555555555555", CreatedBy: userID, OrderTypeID: mutation.OrderTypeID,
+		RestaurantTableID: mutation.RestaurantTableID, PaymentMethod: mutation.PaymentMethod, Subtotal: mutation.Subtotal,
+		DiscountAmount: mutation.DiscountAmount, TaxPercentage: mutation.TaxPercentage, TaxAmount: mutation.TaxAmount,
+		TotalAmount: mutation.TotalAmount, PaidAmount: mutation.PaidAmount, ChangeAmount: mutation.ChangeAmount,
+		RoundingAmount: mutation.RoundingAmount, TipAmount: mutation.TipAmount, TotalQuantity: totalQuantity,
+		Status: payment.TransactionStatusPaid, PaidAt: time.Date(2026, time.August, 20, 10, 0, 0, 0, time.UTC), Items: items}, nil
 }
 
 type routerCatalogProvider struct{}
@@ -143,6 +179,26 @@ func (routerReservationProvider) Update(context.Context, string, string, reserva
 }
 func (routerReservationProvider) Cancel(context.Context, string, string) error { return nil }
 
+type routerSalesProvider struct{}
+
+func (routerSalesProvider) ListOrders(context.Context, string, sales.OrderFilter) (sales.OrderPage, error) {
+	tableID, tableName := "22222222-2222-4222-8222-222222222222", "Meja 5"
+	return sales.OrderPage{Data: []sales.Order{{
+		ID: "11111111-1111-4111-8111-111111111111", ReceiptNumber: "5834608256035020", CustomerName: "Jane Doe",
+		OrderedAt: time.Date(2026, time.August, 28, 10, 0, 0, 0, time.UTC), OrderTypeID: "33333333-3333-4333-8333-333333333333",
+		OrderTypeCode: "table_order", OrderTypeName: "Dine-In", RestaurantTableID: &tableID, RestaurantTableName: &tableName,
+		TotalQuantity: 7, TotalAmount: 120_000, Status: sales.StatusPaid,
+	}}, Page: 1, PageSize: 30, Total: 1}, nil
+}
+
+func (routerSalesProvider) ListCustomers(context.Context, string, sales.CustomerFilter) (sales.CustomerPage, error) {
+	genderID, genderName, email := "44444444-4444-4444-8444-444444444444", "female", "jane@example.com"
+	return sales.CustomerPage{Data: []sales.Customer{{
+		ID: "55555555-5555-4555-8555-555555555555", Name: "Jane Doe", Address: "Jalan Cikawao No. 10, Bandung", Points: 2321,
+		GenderID: &genderID, GenderName: &genderName, PhoneNumber: "08123456789", Email: &email,
+	}}, Page: 1, PageSize: 30, Total: 1}, nil
+}
+
 func newTestRouter() http.Handler {
 	userService := user.NewService(routerUserRepository{})
 	return NewRouter(Dependencies{
@@ -152,8 +208,92 @@ func newTestRouter() http.Handler {
 		UserHandler:         user.NewHandler(userService),
 		CashHandler:         cash.NewHandler(routerCashProvider{}, sharedvalidator.New()),
 		CatalogHandler:      catalog.NewHandler(routerCatalogProvider{}, sharedvalidator.New()),
+		PaymentHandler:      payment.NewHandler(routerPaymentProvider{}),
+		SalesHandler:        sales.NewHandler(routerSalesProvider{}),
 		TokenVerifier:       stubTokenVerifier{token: &firebaseauth.Token{UID: "user-id"}},
 	})
+}
+
+func TestRouterPublishesOrderAndRegisteredCustomerLists(t *testing.T) {
+	router := newTestRouter()
+	tests := []struct {
+		path     string
+		contains []string
+	}{
+		{path: "/dikasa/v1/orders?search=Jane&page=1&page_size=30", contains: []string{`"receipt_number":"5834608256035020"`, `"customer_name":"Jane Doe"`, `"total_amount":120000`, `"name":"Meja 5"`}},
+		{path: "/dikasa/v1/customers?search=Jane&page=1&page_size=30", contains: []string{`"name":"Jane Doe"`, `"points":2321`, `"phone_number":"08123456789"`, `"email":"jane@example.com"`}},
+	}
+	for _, test := range tests {
+		request := httptest.NewRequest(http.MethodGet, test.path, nil)
+		request.Header.Set("Authorization", "Bearer valid-token")
+		response := httptest.NewRecorder()
+
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("GET %s: expected 200, got %d: %s", test.path, response.Code, response.Body.String())
+		}
+		for _, fragment := range test.contains {
+			if !strings.Contains(response.Body.String(), fragment) {
+				t.Fatalf("GET %s missing %s: %s", test.path, fragment, response.Body.String())
+			}
+		}
+	}
+}
+
+func TestRouterRejectsInvalidSalesListFilters(t *testing.T) {
+	router := newTestRouter()
+	for _, path := range []string{
+		"/dikasa/v1/orders?status=unknown",
+		"/dikasa/v1/customers?page_size=101",
+	} {
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		request.Header.Set("Authorization", "Bearer valid-token")
+		response := httptest.NewRecorder()
+
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("GET %s: expected 422, got %d: %s", path, response.Code, response.Body.String())
+		}
+	}
+}
+
+func TestRouterPublishesOnlyCurrentOutletTaxPercentage(t *testing.T) {
+	router := newTestRouter()
+	request := httptest.NewRequest(http.MethodGet, "/dikasa/v1/payments/tax-percentage", nil)
+	request.Header.Set("Authorization", "Bearer valid-token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("unexpected tax percentage status: %d %s", response.Code, response.Body.String())
+	}
+	if body := strings.TrimSpace(response.Body.String()); body != `{"tax_percentage":10}` {
+		t.Fatalf("unexpected tax percentage response: %s", body)
+	}
+}
+
+func TestRouterPublishesWalletDropdownAndTransactionSave(t *testing.T) {
+	router := newTestRouter()
+	walletRequest := httptest.NewRequest(http.MethodGet, "/dikasa/v1/wallets", nil)
+	walletRequest.Header.Set("Authorization", "Bearer valid-token")
+	walletResponse := httptest.NewRecorder()
+	router.ServeHTTP(walletResponse, walletRequest)
+	if walletResponse.Code != http.StatusOK || !strings.Contains(walletResponse.Body.String(), `"code":"gopay"`) {
+		t.Fatalf("unexpected wallet list: %d %s", walletResponse.Code, walletResponse.Body.String())
+	}
+
+	body := `{"order_type_id":"11111111-1111-4111-8111-111111111111","payment_method":"cash","subtotal":21000,"discount_amount":0,"tax_percentage":10,"tax_amount":2100,"total_amount":23100,"paid_amount":25000,"change_amount":1900,"rounding_amount":0,"tip_amount":0,"items":[{"product_id":"22222222-2222-4222-8222-222222222222","product_name":"Nasi Goreng","unit_price":21000,"quantity":1,"line_total":21000}]}`
+	transactionRequest := httptest.NewRequest(http.MethodPost, "/dikasa/v1/transactions", strings.NewReader(body))
+	transactionRequest.Header.Set("Content-Type", "application/json")
+	transactionRequest.Header.Set("Authorization", "Bearer valid-token")
+	transactionResponse := httptest.NewRecorder()
+	router.ServeHTTP(transactionResponse, transactionRequest)
+	if transactionResponse.Code != http.StatusCreated || !strings.Contains(transactionResponse.Body.String(), `"transaction_number":"TRX-TEST-001"`) || !strings.Contains(transactionResponse.Body.String(), `"product_name":"Nasi Goreng"`) {
+		t.Fatalf("unexpected transaction response: %d %s", transactionResponse.Code, transactionResponse.Body.String())
+	}
 }
 
 func TestRouterPublishesAuthenticatedCashSessionFlow(t *testing.T) {

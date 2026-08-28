@@ -13,8 +13,10 @@ import (
 	"be-dikasa/internal/auth"
 	"be-dikasa/internal/cash"
 	"be-dikasa/internal/catalog"
+	"be-dikasa/internal/payment"
 	"be-dikasa/internal/registration"
 	"be-dikasa/internal/reservation"
+	"be-dikasa/internal/sales"
 	"be-dikasa/internal/server"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
@@ -48,7 +50,36 @@ func (schemaCashProvider) Current(context.Context, string) (*cash.Session, error
 	return &cash.Session{}, nil
 }
 
+type schemaPaymentProvider struct{}
+
+func (schemaPaymentProvider) TaxPercentage(context.Context, string) (float64, error) {
+	return 0, nil
+}
+func (schemaPaymentProvider) ListWallets(context.Context, string, bool) ([]payment.Wallet, error) {
+	return nil, nil
+}
+func (schemaPaymentProvider) CreateWallet(context.Context, string, payment.WalletMutation) (*payment.Wallet, error) {
+	return &payment.Wallet{}, nil
+}
+func (schemaPaymentProvider) UpdateWallet(context.Context, string, string, payment.WalletMutation) (*payment.Wallet, error) {
+	return &payment.Wallet{}, nil
+}
+func (schemaPaymentProvider) DeleteWallet(context.Context, string, string) error { return nil }
+func (schemaPaymentProvider) CreateTransaction(context.Context, string, payment.TransactionMutation) (*payment.Transaction, error) {
+	return &payment.Transaction{}, nil
+}
+
 type schemaCatalogProvider struct{}
+
+type schemaSalesProvider struct{}
+
+func (schemaSalesProvider) ListOrders(context.Context, string, sales.OrderFilter) (sales.OrderPage, error) {
+	return sales.OrderPage{}, nil
+}
+
+func (schemaSalesProvider) ListCustomers(context.Context, string, sales.CustomerFilter) (sales.CustomerPage, error) {
+	return sales.CustomerPage{}, nil
+}
 
 func (schemaCatalogProvider) ListProductTypes(context.Context, string) ([]catalog.ProductType, error) {
 	return nil, nil
@@ -108,8 +139,10 @@ func main() {
 		AuthHandler:         auth.NewHandler(schemaSignInProvider{}, sharedvalidator.New()),
 		CashHandler:         cash.NewHandler(schemaCashProvider{}, sharedvalidator.New()),
 		CatalogHandler:      catalog.NewHandler(schemaCatalogProvider{}, sharedvalidator.New()),
+		PaymentHandler:      payment.NewHandler(schemaPaymentProvider{}),
 		RegistrationHandler: registration.NewHandler(schemaRegistrationProvider{}, sharedvalidator.New()),
 		ReservationHandler:  reservation.NewHandler(nil, sharedvalidator.New()),
+		SalesHandler:        sales.NewHandler(schemaSalesProvider{}),
 		UserHandler:         user.NewHandler(userService),
 	})
 	request := httptest.NewRequest(http.MethodGet, "/dikasa/v1/openapi.yaml", nil)

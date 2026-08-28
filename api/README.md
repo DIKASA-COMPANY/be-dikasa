@@ -8,8 +8,35 @@
 
 All application endpoints use the `/dikasa/v1` prefix. Login, registration,
 registration OTP confirmation/resend, Swagger, and OpenAPI are public. Other
-endpoints, including cash sessions, products, product categories, order types, tables, and reservations, require
+endpoints, including cash sessions, products, product categories, order types, tables, reservations, orders, and customers, require
 `Authorization: Bearer <Firebase ID token>`.
+
+The payment screen reads the current outlet tax from
+`GET /dikasa/v1/payments/tax-percentage`. The response contains only the
+numeric `tax_percentage`; `10` means 10 percent, not `0.10`. Cart parsing and
+all tax/total calculations remain the frontend's responsibility.
+
+Wallet options are outlet-scoped. `GET /dikasa/v1/wallets` supplies the active
+dropdown values; managers use POST/PATCH/DELETE on `/wallets` to manage them.
+Delete is a soft delete so historical payments keep their wallet reference.
+
+`POST /dikasa/v1/transactions` runs only after the user confirms payment. The
+frontend sends its monetary calculation together with product snapshots,
+quantities, notes, and optional variants. The backend validates arithmetic and
+scope in Go, attaches the outlet's active cash session, generates the
+transaction number, and commits the header plus every item atomically.
+
+`GET /dikasa/v1/orders` reads transaction snapshots for the authenticated
+user's outlet. It supports case-insensitive `search` on receipt number/customer
+name, optional `order_type_id` and `status`, plus `page`/`page_size`. The response
+includes the order-type and optional restaurant-table labels needed by the order
+list screen.
+
+`GET /dikasa/v1/customers` returns active registered customers from the same
+outlet. It supports case-insensitive `search` on name/phone/email, optional
+`gender_id`, and pagination. Customer profiles are separate from staff `users`;
+transactions retain a `customer_name` snapshot so historical receipts do not
+change when a customer profile changes.
 
 Catalog resources use `/products` (never `/foods`, `/drinks`, or `/list`). Use
 the exact query key `searchByProductName` for case-insensitive partial name

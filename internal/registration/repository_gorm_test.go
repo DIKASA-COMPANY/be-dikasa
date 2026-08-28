@@ -39,6 +39,7 @@ func TestGORMRepositoryCreatesRegistrationInOneTransaction(t *testing.T) {
 		sqlmock.AnyArg(), now, "budi@example.com", "Budi", sqlmock.AnyArg(), false, "", sqlmock.AnyArg(), "hash", "081298765432", "role-id", sqlmock.AnyArg(), "budi",
 	).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(`INSERT INTO order_types`).WillReturnResult(sqlmock.NewResult(0, 6))
+	mock.ExpectExec(`INSERT INTO payment_wallets`).WillReturnResult(sqlmock.NewResult(0, 4))
 	mock.ExpectExec(`INSERT INTO "registration_otps"`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 

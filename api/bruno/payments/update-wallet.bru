@@ -1,0 +1,31 @@
+meta {
+  name: Update Wallet (Manager)
+  type: http
+  seq: 33
+}
+
+patch {
+  url: {{baseUrl}}/dikasa/v1/wallets/{{walletId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "code": "linkaja",
+    "name": "LinkAja Indonesia",
+    "icon_key": "linkaja",
+    "sort_order": 50,
+    "is_active": true
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.name: eq LinkAja Indonesia
+}
+

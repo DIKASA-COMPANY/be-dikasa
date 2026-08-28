@@ -149,6 +149,69 @@ components:
       required:
         - verified
       type: object
+    CustomerData:
+      additionalProperties: false
+      properties:
+        address:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        email:
+          format: email
+          type: string
+        gender:
+          $ref: "#/components/schemas/GenderData"
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+        phone_number:
+          type: string
+        points:
+          format: int64
+          minimum: 0
+          type: integer
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - name
+        - address
+        - points
+        - phone_number
+        - created_at
+        - updated_at
+      type: object
+    CustomersOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/CustomerData"
+          type:
+            - array
+            - "null"
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+      required:
+        - data
+        - meta
+      type: object
+    GenderData:
+      additionalProperties: false
+      properties:
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - name
+      type: object
     HealthOutputBody:
       additionalProperties: false
       properties:
@@ -280,6 +343,65 @@ components:
       required:
         - opening_cash
       type: object
+    OrderData:
+      additionalProperties: false
+      properties:
+        customer_id:
+          format: uuid
+          type: string
+        customer_name:
+          type: string
+        id:
+          format: uuid
+          type: string
+        order_type:
+          $ref: "#/components/schemas/OrderListTypeData"
+        ordered_at:
+          format: date-time
+          type: string
+        receipt_number:
+          type: string
+        restaurant_table:
+          $ref: "#/components/schemas/RestaurantTableData"
+        status:
+          enum:
+            - paid
+            - refunded
+            - cancelled
+          type: string
+        total_amount:
+          format: int64
+          minimum: 0
+          type: integer
+        total_quantity:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+        - id
+        - receipt_number
+        - customer_name
+        - ordered_at
+        - order_type
+        - total_quantity
+        - total_amount
+        - status
+      type: object
+    OrderListTypeData:
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - code
+        - name
+      type: object
     OrderTypeData:
       additionalProperties: false
       properties:
@@ -343,6 +465,38 @@ components:
             - "null"
       required:
         - data
+      type: object
+    OrdersOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/OrderData"
+          type:
+            - array
+            - "null"
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+      required:
+        - data
+        - meta
+      type: object
+    PaginationMeta:
+      additionalProperties: false
+      properties:
+        page:
+          format: int64
+          type: integer
+        page_size:
+          format: int64
+          type: integer
+        total:
+          format: int64
+          type: integer
+      required:
+        - page
+        - page_size
+        - total
       type: object
     ProductData:
       additionalProperties: false
@@ -835,6 +989,18 @@ components:
         - data
         - meta
       type: object
+    RestaurantTableData:
+      additionalProperties: false
+      properties:
+        id:
+          format: uuid
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - name
+      type: object
     SessionData:
       additionalProperties: false
       properties:
@@ -957,6 +1123,272 @@ components:
       required:
         - data
       type: object
+    TaxPercentageResponse:
+      additionalProperties: false
+      properties:
+        tax_percentage:
+          examples:
+            - 10
+          format: double
+          maximum: 100
+          minimum: 0
+          type: number
+      required:
+        - tax_percentage
+      type: object
+    TransactionData:
+      additionalProperties: false
+      properties:
+        cash_session_id:
+          format: uuid
+          type: string
+        change_amount:
+          format: int64
+          type: integer
+        discount_amount:
+          format: int64
+          type: integer
+        id:
+          format: uuid
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/TransactionItemData"
+          type:
+            - array
+            - "null"
+        order_type_id:
+          format: uuid
+          type: string
+        paid_amount:
+          format: int64
+          type: integer
+        paid_at:
+          format: date-time
+          type: string
+        payment_method:
+          type: string
+        restaurant_table_id:
+          format: uuid
+          type: string
+        rounding_amount:
+          format: int64
+          type: integer
+        status:
+          type: string
+        subtotal:
+          format: int64
+          type: integer
+        tax_amount:
+          format: int64
+          type: integer
+        tax_percentage:
+          format: double
+          type: number
+        tip_amount:
+          format: int64
+          type: integer
+        total_amount:
+          format: int64
+          type: integer
+        total_quantity:
+          format: int64
+          type: integer
+        transaction_number:
+          type: string
+        wallet:
+          $ref: "#/components/schemas/WalletData"
+      required:
+        - id
+        - transaction_number
+        - cash_session_id
+        - order_type_id
+        - payment_method
+        - subtotal
+        - discount_amount
+        - tax_percentage
+        - tax_amount
+        - total_amount
+        - paid_amount
+        - change_amount
+        - rounding_amount
+        - tip_amount
+        - total_quantity
+        - status
+        - paid_at
+        - items
+      type: object
+    TransactionItemData:
+      additionalProperties: false
+      properties:
+        id:
+          format: uuid
+          type: string
+        line_total:
+          format: int64
+          type: integer
+        notes:
+          type: string
+        product_id:
+          format: uuid
+          type: string
+        product_name:
+          type: string
+        product_variant_id:
+          format: uuid
+          type: string
+        quantity:
+          format: int64
+          type: integer
+        unit_price:
+          format: int64
+          type: integer
+        variant_name:
+          type: string
+      required:
+        - id
+        - product_id
+        - product_name
+        - unit_price
+        - quantity
+        - line_total
+      type: object
+    TransactionItemRequest:
+      additionalProperties: false
+      properties:
+        line_total:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        notes:
+          maxLength: 500
+          type: string
+        product_id:
+          format: uuid
+          type: string
+        product_name:
+          maxLength: 150
+          type: string
+        product_variant_id:
+          format: uuid
+          type: string
+        quantity:
+          format: int64
+          maximum: 1000
+          minimum: 1
+          type: integer
+        unit_price:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        variant_name:
+          maxLength: 100
+          type: string
+      required:
+        - product_id
+        - product_name
+        - unit_price
+        - quantity
+        - line_total
+      type: object
+    TransactionRequest:
+      additionalProperties: false
+      properties:
+        change_amount:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        discount_amount:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        items:
+          items:
+            $ref: "#/components/schemas/TransactionItemRequest"
+          maxItems: 100
+          minItems: 1
+          type:
+            - array
+            - "null"
+        order_type_id:
+          format: uuid
+          type: string
+        paid_amount:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        payment_method:
+          enum:
+            - cash
+            - wallet
+            - debit_card
+            - qris
+            - point
+            - transfer
+          type: string
+        restaurant_table_id:
+          format: uuid
+          type: string
+        rounding_amount:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        subtotal:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        tax_amount:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        tax_percentage:
+          format: double
+          maximum: 100
+          minimum: 0
+          type: number
+        tip_amount:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        total_amount:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        wallet_id:
+          format: uuid
+          type: string
+      required:
+        - order_type_id
+        - payment_method
+        - subtotal
+        - discount_amount
+        - tax_percentage
+        - tax_amount
+        - total_amount
+        - paid_amount
+        - change_amount
+        - rounding_amount
+        - tip_amount
+        - items
+      type: object
+    TransactionResponse:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/TransactionData"
+      required:
+        - data
+      type: object
     TypeData:
       additionalProperties: false
       properties:
@@ -985,6 +1417,82 @@ components:
           type:
             - array
             - "null"
+      required:
+        - data
+      type: object
+    WalletData:
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        icon_key:
+          type: string
+        id:
+          format: uuid
+          type: string
+        is_active:
+          type: boolean
+        name:
+          type: string
+        sort_order:
+          format: int64
+          type: integer
+      required:
+        - id
+        - code
+        - name
+        - sort_order
+        - is_active
+      type: object
+    WalletListResponse:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/WalletData"
+          type:
+            - array
+            - "null"
+      required:
+        - data
+      type: object
+    WalletRequest:
+      additionalProperties: false
+      properties:
+        code:
+          examples:
+            - gopay
+          maxLength: 50
+          type: string
+        icon_key:
+          examples:
+            - gopay
+          maxLength: 100
+          type: string
+        is_active:
+          default: true
+          type: boolean
+        name:
+          examples:
+            - GoPay
+          maxLength: 100
+          type: string
+        sort_order:
+          examples:
+            - 10
+          format: int64
+          type: integer
+      required:
+        - code
+        - name
+        - sort_order
+        - is_active
+      type: object
+    WalletResponse:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/WalletData"
       required:
         - data
       type: object
@@ -1087,6 +1595,80 @@ paths:
       summary: Mengambil sesi kas aktif
       tags:
         - Sesi Kas
+  /customers:
+    get:
+      description: Mengambil pelanggan aktif outlet. Pencarian mencocokkan nama, nomor telepon, atau email.
+      operationId: list-registered-customers
+      parameters:
+        - explode: false
+          in: query
+          name: search
+          schema:
+            maxLength: 100
+            type: string
+        - explode: false
+          in: query
+          name: gender_id
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 30
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomersOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Daftar pelanggan terdaftar
+      tags:
+        - Penjualan
   /health:
     get:
       description: Memastikan API berjalan dan Firebase ID token berhasil diverifikasi.
@@ -1450,6 +2032,127 @@ paths:
       summary: Memperbarui jenis order
       tags:
         - Jenis Order
+  /orders:
+    get:
+      description: Mengambil transaksi terbaru sebagai daftar order outlet. Pencarian mencocokkan nomor nota atau nama pelanggan.
+      operationId: list-orders
+      parameters:
+        - explode: false
+          in: query
+          name: search
+          schema:
+            maxLength: 100
+            type: string
+        - explode: false
+          in: query
+          name: order_type_id
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: status
+          schema:
+            enum:
+              - paid
+              - refunded
+              - cancelled
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 30
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrdersOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Daftar order outlet
+      tags:
+        - Penjualan
+  /payments/tax-percentage:
+    get:
+      description: Mengambil persentase pajak terbaru milik outlet user. FE menghitung nominal pajak dan total pembayaran dari nilai ini.
+      operationId: get-payment-tax-percentage
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxPercentageResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Mengambil persentase pajak pembayaran
+      tags:
+        - Pembayaran
   /product-types:
     get:
       operationId: list-product-types
@@ -3098,6 +3801,62 @@ paths:
       summary: Memperbarui meja restoran
       tags:
         - Reservasi
+  /transactions:
+    post:
+      description: Menyimpan nominal hasil kalkulasi FE dan snapshot seluruh item secara atomik pada sesi kas aktif. Backend memvalidasi konsistensi tanpa query agregasi cart.
+      operationId: create-transaction
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionResponse"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Menyimpan transaksi pembayaran
+      tags:
+        - Pembayaran
   /users/me:
     get:
       description: Mengambil profil PostgreSQL berdasarkan UID pada Firebase ID token.
@@ -3310,6 +4069,208 @@ paths:
       summary: Mengubah PIN akun
       tags:
         - User
+  /wallets:
+    get:
+      description: Mengambil wallet aktif milik outlet untuk dropdown pembayaran. include_inactive hanya tersedia untuk manager.
+      operationId: list-payment-wallets
+      parameters:
+        - explode: false
+          in: query
+          name: include_inactive
+          schema:
+            type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletListResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Mengambil pilihan wallet
+      tags:
+        - Pembayaran
+    post:
+      description: Manager membuat pilihan wallet baru untuk outletnya.
+      operationId: create-payment-wallet
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletResponse"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Membuat wallet
+      tags:
+        - Pembayaran
+  /wallets/{wallet_id}:
+    delete:
+      description: Manager melakukan soft delete wallet agar transaksi lama tetap dapat diaudit.
+      operationId: delete-payment-wallet
+      parameters:
+        - in: path
+          name: wallet_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Menonaktifkan wallet
+      tags:
+        - Pembayaran
+    patch:
+      description: Manager memperbarui nama, icon, urutan, atau status wallet outlet.
+      operationId: update-payment-wallet
+      parameters:
+        - in: path
+          name: wallet_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletResponse"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Memperbarui wallet
+      tags:
+        - Pembayaran
 security:
   - firebaseBearer: []
 servers:

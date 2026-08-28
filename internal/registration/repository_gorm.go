@@ -54,6 +54,14 @@ func (repository *GORMRepository) CreatePending(ctx context.Context, params Crea
 			outletID, outletID, outletID, outletID, outletID, outletID).Error; err != nil {
 			return err
 		}
+		if err := transaction.Exec(`INSERT INTO payment_wallets (outlet_id, code, name, icon_key, sort_order)
+			VALUES (?, 'gopay', 'GoPay', 'gopay', 10),
+			       (?, 'ovo', 'OVO', 'ovo', 20),
+			       (?, 'shopeepay', 'ShopeePay', 'shopeepay', 30),
+			       (?, 'dana', 'DANA', 'dana', 40)`,
+			outletID, outletID, outletID, outletID).Error; err != nil {
+			return err
+		}
 		pending = Pending{
 			ID: uuid.NewString(), UserID: userID, OutletID: outletID, Email: params.VerificationEmail,
 			CodeHash: params.CodeHash, ExpiresAt: params.ExpiresAt, ResendAvailableAt: params.ResendAvailableAt,

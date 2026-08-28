@@ -1,0 +1,22 @@
+meta {
+  name: List Orders
+  type: http
+  seq: 40
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/orders?search=Jane&status=paid&page=1&page_size=30
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+  res.body.meta.page: eq 1
+  res.body.meta.page_size: eq 30
+}

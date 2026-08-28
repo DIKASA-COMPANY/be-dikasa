@@ -293,6 +293,12 @@ All application routes use the `/dikasa/v1` prefix.
 | `PATCH` | `/users/me/password` | Firebase Bearer token | Verify the current password and set a new password |
 | `POST` | `/cash-sessions` | Firebase Bearer token | Open the outlet cash session with an opening-cash amount |
 | `GET` | `/cash-sessions/current` | Firebase Bearer token | Return the outlet's active cash session |
+| `GET` | `/payments/tax-percentage` | Firebase Bearer token | Return only the current outlet tax percentage for frontend payment calculation |
+| `GET/POST` | `/wallets` | User / Manager | List active wallet options or create an outlet wallet |
+| `PATCH/DELETE` | `/wallets/{wallet_id}` | Manager | Update or soft-delete an outlet wallet |
+| `POST` | `/transactions` | User outlet with active cash session | Atomically save the paid transaction and all product snapshots |
+| `GET` | `/orders` | Firebase Bearer token | List outlet orders with receipt/customer search, type/status filters, and pagination |
+| `GET` | `/customers` | Firebase Bearer token | List active registered customers with search, gender filter, and pagination |
 | `GET` | `/product-types` | Firebase Bearer token | Return Food, Drink, and Additional tabs |
 | `GET` | `/products` | Firebase Bearer token | Return outlet products with category, type, search, and pagination filters |
 | `GET` | `/products/{product_id}` | Firebase Bearer token | Return one outlet product |
@@ -323,6 +329,32 @@ Reservation creation stores customer/contact, a future RFC 3339
 flags. A table cannot have two active reservations at the exact same timestamp.
 The flags are persisted instructions only; no message is sent until a separate
 communication provider is configured.
+
+The payment page requests `GET /payments/tax-percentage` when it opens. Its
+response is only `{"tax_percentage":10}`, where `10` means 10 percent. The
+frontend keeps the order list and calculates tax and totals locally; the API
+does not receive or recalculate the cart for this lookup.
+
+Wallets are outlet-scoped dropdown options. New outlets receive GoPay, OVO,
+ShopeePay, and DANA by default; managers may add, edit, reorder, deactivate, or
+soft-delete them. A wallet payment must send an active `wallet_id`.
+
+When **Proses Bayar** is confirmed, `POST /transactions` accepts the FE totals
+and item snapshots. Each item records product/variant IDs, display names, unit
+price, quantity, notes, and line total. The backend performs lightweight
+arithmetic and outlet validation in Go, requires an open cash session, creates
+the transaction number, and commits the header and all items in one database
+transaction. It does not run a database aggregation to recalculate the cart.
+
+The order-history screen uses `GET /orders`. Results are isolated to the
+authenticated user's outlet and ordered newest first. `search` matches receipt
+number or the stored customer-name snapshot; `order_type_id`, `status`, `page`,
+and `page_size` are optional filters. The response keeps order type and table as
+structured objects so the frontend can render labels such as `Dine-In [Meja 5]`.
+
+The registered-customer screen uses `GET /customers`. `search` matches name,
+phone number, or email; `gender_id`, `page`, and `page_size` are optional.
+Customers are outlet-scoped and distinct from staff accounts in `users`.
 
 Important OTP rules:
 

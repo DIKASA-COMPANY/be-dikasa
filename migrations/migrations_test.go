@@ -113,6 +113,43 @@ func TestReservationAndProductCommerceMigrationMatchesPOSForms(t *testing.T) {
 	}
 }
 
+func TestPaymentMigrationCreatesWalletAndTransactionSnapshots(t *testing.T) {
+	content, err := os.ReadFile("000007_create_payment_wallets_and_transactions.up.sql")
+	if err != nil {
+		t.Fatalf("read payment migration: %v", err)
+	}
+	sql := strings.ToLower(string(content))
+	for _, fragment := range []string{
+		"create table payment_wallets", "create table transactions", "create table transaction_items",
+		"transaction_number", "cash_session_id", "payment_method", "tax_percentage", "total_quantity",
+		"product_name", "unit_price", "quantity", "line_total", "foreign key (wallet_id, outlet_id)",
+		"'gopay'", "'ovo'", "'shopeepay'", "'dana'",
+	} {
+		if !strings.Contains(sql, fragment) {
+			t.Errorf("payment migration must contain %q", fragment)
+		}
+	}
+}
+
+func TestSalesListingMigrationCreatesCustomersAndOrderCustomerSnapshot(t *testing.T) {
+	content, err := os.ReadFile("000008_create_customers_and_link_transactions.up.sql")
+	if err != nil {
+		t.Fatalf("read sales listing migration: %v", err)
+	}
+	sql := strings.ToLower(string(content))
+	for _, fragment := range []string{
+		"create table customers", "outlet_id uuid not null", "gender_id uuid", "name varchar(100) not null",
+		"address text", "points bigint", "phone_number varchar(30) not null", "email varchar(254)",
+		"foreign key (outlet_id)", "foreign key (gender_id)", "unique (id, outlet_id)",
+		"alter table transactions", "customer_id uuid", "customer_name varchar(100) not null",
+		"foreign key (customer_id, outlet_id)",
+	} {
+		if !strings.Contains(sql, fragment) {
+			t.Errorf("sales listing migration must contain %q", fragment)
+		}
+	}
+}
+
 func TestMakefileAppliesAndRollsBackMigrationsInOrder(t *testing.T) {
 	content, err := os.ReadFile("../Makefile")
 	if err != nil {
@@ -130,6 +167,10 @@ func TestMakefileAppliesAndRollsBackMigrationsInOrder(t *testing.T) {
 		"migrations/000005_add_user_profile_avatar.down.sql",
 		"migrations/000006_add_reservations_and_product_commerce.up.sql",
 		"migrations/000006_add_reservations_and_product_commerce.down.sql",
+		"migrations/000007_create_payment_wallets_and_transactions.up.sql",
+		"migrations/000007_create_payment_wallets_and_transactions.down.sql",
+		"migrations/000008_create_customers_and_link_transactions.up.sql",
+		"migrations/000008_create_customers_and_link_transactions.down.sql",
 	} {
 		if !strings.Contains(makefile, migration) {
 			t.Errorf("Makefile must run %s", migration)
@@ -149,5 +190,11 @@ func TestMakefileAppliesAndRollsBackMigrationsInOrder(t *testing.T) {
 	}
 	if strings.Index(makefile, "000006_add_reservations_and_product_commerce.down.sql") > strings.Index(makefile, "000005_add_user_profile_avatar.down.sql") {
 		t.Fatal("migrate-down must roll back reservations before user profile")
+	}
+	if strings.Index(makefile, "000007_create_payment_wallets_and_transactions.down.sql") > strings.Index(makefile, "000006_add_reservations_and_product_commerce.down.sql") {
+		t.Fatal("migrate-down must roll back payments before reservations")
+	}
+	if strings.Index(makefile, "000008_create_customers_and_link_transactions.down.sql") > strings.Index(makefile, "000007_create_payment_wallets_and_transactions.down.sql") {
+		t.Fatal("migrate-down must roll back customers before payments")
 	}
 }

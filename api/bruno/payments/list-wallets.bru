@@ -1,0 +1,21 @@
+meta {
+  name: List Wallets
+  type: http
+  seq: 32
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/wallets?include_inactive=false
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+}
+

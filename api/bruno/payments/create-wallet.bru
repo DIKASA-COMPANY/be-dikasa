@@ -1,0 +1,38 @@
+meta {
+  name: Create Wallet (Manager)
+  type: http
+  seq: 31
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/wallets
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "code": "linkaja",
+    "name": "LinkAja",
+    "icon_key": "linkaja",
+    "sort_order": 50,
+    "is_active": true
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isNotEmpty
+  res.body.data.code: eq linkaja
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setEnvVar("walletId", res.body.data.id);
+  }
+}
+

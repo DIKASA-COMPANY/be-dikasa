@@ -16,8 +16,10 @@ import (
 	"be-dikasa/internal/auth"
 	"be-dikasa/internal/cash"
 	"be-dikasa/internal/catalog"
+	"be-dikasa/internal/payment"
 	"be-dikasa/internal/registration"
 	"be-dikasa/internal/reservation"
+	"be-dikasa/internal/sales"
 	sharederrors "be-dikasa/internal/shared/errors"
 	sharedresponse "be-dikasa/internal/shared/response"
 	"be-dikasa/internal/user"
@@ -30,8 +32,10 @@ type Dependencies struct {
 	AuthHandler         *auth.Handler
 	CashHandler         *cash.Handler
 	CatalogHandler      *catalog.Handler
+	PaymentHandler      *payment.Handler
 	RegistrationHandler *registration.Handler
 	ReservationHandler  *reservation.Handler
+	SalesHandler        *sales.Handler
 	UserHandler         *user.Handler
 	TokenVerifier       TokenVerifier
 }
@@ -79,8 +83,14 @@ func NewRouter(dependencies Dependencies) *gin.Engine {
 	if dependencies.CatalogHandler != nil {
 		catalog.RegisterRoutes(api, dependencies.CatalogHandler)
 	}
+	if dependencies.PaymentHandler != nil {
+		payment.RegisterRoutes(api, dependencies.PaymentHandler)
+	}
 	if dependencies.ReservationHandler != nil {
 		reservation.RegisterRoutes(api, dependencies.ReservationHandler)
+	}
+	if dependencies.SalesHandler != nil {
+		sales.RegisterRoutes(api, dependencies.SalesHandler)
 	}
 	registration.RegisterRoutes(api, dependencies.RegistrationHandler)
 	user.RegisterRoutes(api, dependencies.UserHandler)

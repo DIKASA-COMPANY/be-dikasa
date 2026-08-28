@@ -15,8 +15,10 @@ import (
 	"be-dikasa/internal/catalog"
 	"be-dikasa/internal/config"
 	"be-dikasa/internal/database"
+	"be-dikasa/internal/payment"
 	"be-dikasa/internal/registration"
 	"be-dikasa/internal/reservation"
+	"be-dikasa/internal/sales"
 	"be-dikasa/internal/server"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
@@ -82,6 +84,8 @@ func run(ctx context.Context) error {
 	catalogService := catalog.NewService(catalogRepository, userRepository, imageStore)
 	cashRepository := cash.NewGORMRepository(postgres)
 	cashService := cash.NewService(cashRepository, userRepository, time.Now)
+	paymentRepository := payment.NewGORMRepository(postgres)
+	paymentService := payment.NewService(paymentRepository, userRepository)
 	tokenIssuer := auth.NewFirebaseTokenIssuer(firebaseAuth, configuration.Firebase.WebAPIKey)
 	authService := auth.NewService(userRepository, tokenIssuer)
 	registrationRepository := registration.NewGORMRepository(postgres)
@@ -92,12 +96,16 @@ func run(ctx context.Context) error {
 	registrationService := registration.NewService(registrationRepository, registrationMailer, registration.NewHMACHasher(configuration.OTPSecret))
 	reservationRepository := reservation.NewGORMRepository(postgres)
 	reservationService := reservation.NewService(reservationRepository, userRepository, time.Now)
+	salesRepository := sales.NewGORMRepository(postgres)
+	salesService := sales.NewService(salesRepository, userRepository)
 	router := server.NewRouter(server.Dependencies{
 		AuthHandler:         auth.NewHandler(authService, sharedvalidator.New()),
 		CashHandler:         cash.NewHandler(cashService, sharedvalidator.New()),
 		CatalogHandler:      catalog.NewHandler(catalogService, sharedvalidator.New()),
+		PaymentHandler:      payment.NewHandler(paymentService),
 		RegistrationHandler: registration.NewHandler(registrationService, sharedvalidator.New()),
 		ReservationHandler:  reservation.NewHandler(reservationService, sharedvalidator.New()),
+		SalesHandler:        sales.NewHandler(salesService),
 		UserHandler:         user.NewHandler(userService),
 		TokenVerifier:       firebaseAuth,
 	})
