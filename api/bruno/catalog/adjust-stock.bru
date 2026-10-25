@@ -1,0 +1,25 @@
+meta {
+  name: Adjust Shared Stock
+  type: http
+  seq: 51
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/products/{{productId}}/stock-adjustments
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "request_id": "{{stockAdjustmentId}}", "reason": "Stock receipt", "quantity_delta": 10
+  }
+}
+
+assert {
+  res.status: eq 200
+}

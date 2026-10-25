@@ -34,12 +34,12 @@ type SignInProvider interface {
 	SignIn(ctx context.Context, identifier, password string) (Session, error)
 }
 
-// TokenIssuer menerbitkan Firebase ID token untuk UUID user PostgreSQL.
+// TokenIssuer issues a provider session for a PostgreSQL user UUID.
 type TokenIssuer interface {
 	Issue(ctx context.Context, uid string) (Session, error)
 }
 
-// Service mengautentikasi kredensial PostgreSQL sebelum meminta token Firebase.
+// Service validates PostgreSQL credentials before requesting a provider token.
 type Service struct {
 	users  user.Repository
 	issuer TokenIssuer

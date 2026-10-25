@@ -1,0 +1,21 @@
+meta {
+  name: Upload Product Photo (Manager)
+  type: http
+  seq: 55
+}
+patch {
+  url: {{baseUrl}}/dikasa/v1/products/{{productId}}
+  body: multipartForm
+  auth: bearer
+}
+auth:bearer {
+  token: {{accessToken}}
+}
+body:multipart-form {
+  image: @file({{productImagePath}})
+  remove_image: false
+}
+assert {
+  res.status: eq 200
+  res.body.data.image_url: isNotEmpty
+}

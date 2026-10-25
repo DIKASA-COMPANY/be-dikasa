@@ -1,0 +1,20 @@
+meta {
+  name: Refund Audit History
+  type: http
+  seq: 74
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/transactions/{{refundTransactionId}}/refunds?page=1&page_size=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+}

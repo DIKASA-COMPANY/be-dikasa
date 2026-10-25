@@ -4,14 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"image"
-	_ "image/jpeg"
-	_ "image/png"
 	"io"
-	"mime"
-	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 
 	"cloud.google.com/go/storage"
@@ -39,38 +33,9 @@ func NewFirebaseAvatarStore(bucketName string, bucket AvatarObjectBucket) *Fireb
 
 // Save memvalidasi MIME, signature, extension, decode, dan batas tiga MiB sebelum upload.
 func (store *FirebaseAvatarStore) Save(ctx context.Context, outletID, userID string, upload *AvatarUpload) (*AvatarImage, error) {
-	if upload == nil || upload.Reader == nil || upload.Size < 1 {
-		return nil, ErrInvalidAvatar
-	}
-	if upload.Size > maxAvatarBytes {
-		return nil, ErrAvatarTooLarge
-	}
-	content, err := io.ReadAll(io.LimitReader(upload.Reader, maxAvatarBytes+1))
+	content, extension, declared, err := validateAvatar(upload)
 	if err != nil {
-		return nil, ErrInvalidAvatar
-	}
-	if int64(len(content)) > maxAvatarBytes {
-		return nil, ErrAvatarTooLarge
-	}
-	declared, _, err := mime.ParseMediaType(upload.ContentType)
-	if err != nil {
-		return nil, ErrInvalidAvatar
-	}
-	detected, extension := http.DetectContentType(content), strings.ToLower(filepath.Ext(upload.Filename))
-	if (declared != "image/png" && declared != "image/jpeg") || detected != declared || (extension != ".png" && extension != ".jpg" && extension != ".jpeg") {
-		return nil, ErrInvalidAvatar
-	}
-	_, format, err := image.Decode(bytes.NewReader(content))
-	if err != nil || (format != "png" && format != "jpeg") {
-		return nil, ErrInvalidAvatar
-	}
-	if (format == "png") != (declared == "image/png") {
-		return nil, ErrInvalidAvatar
-	}
-	if format == "png" {
-		extension = ".png"
-	} else {
-		extension = ".jpg"
+		return nil, err
 	}
 	token := uuid.NewString()
 	objectName := fmt.Sprintf("outlets/%s/users/%s/avatar/%s%s", outletID, userID, uuid.NewString(), extension)
@@ -85,6 +50,9 @@ func (store *FirebaseAvatarStore) Save(ctx context.Context, outletID, userID str
 func (store *FirebaseAvatarStore) Delete(ctx context.Context, objectName string) error {
 	if strings.TrimSpace(objectName) == "" {
 		return nil
+	}
+	if !strings.HasPrefix(objectName, "outlets/") || !strings.Contains(objectName, "/avatar/") {
+		return ErrInvalidAvatar
 	}
 	if err := store.bucket.Delete(ctx, objectName); err != nil {
 		return fmt.Errorf("%w: delete", ErrAvatarStorage)

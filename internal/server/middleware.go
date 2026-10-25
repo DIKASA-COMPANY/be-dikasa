@@ -15,13 +15,13 @@ import (
 
 type identityContextKey struct{}
 
-// Identity adalah identitas user PostgreSQL dari Firebase ID token terverifikasi.
+// Identity is the PostgreSQL identity from a verified provider access token.
 type Identity struct {
 	UserID string
 	Claims map[string]any
 }
 
-// TokenVerifier memverifikasi Firebase ID token.
+// TokenVerifier verifies provider tokens; local mode adapts to the existing Firebase token type.
 type TokenVerifier interface {
 	VerifyIDToken(ctx context.Context, idToken string) (*firebaseauth.Token, error)
 }
@@ -29,7 +29,7 @@ type TokenVerifier interface {
 // PublicPathMatcher menentukan path infrastruktur yang tidak memerlukan token.
 type PublicPathMatcher func(path string) bool
 
-// AuthMiddleware melindungi route Gin menggunakan Firebase ID token.
+// AuthMiddleware protects routes using the configured token verifier.
 func AuthMiddleware(verifier TokenVerifier, isPublic PublicPathMatcher) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if isPublic != nil && isPublic(c.Request.URL.Path) {

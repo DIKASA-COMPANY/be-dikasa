@@ -57,6 +57,7 @@ type User struct {
 	AvatarObjectName *string    `gorm:"type:text"`
 	FirstName        string     `gorm:"size:100;not null"`
 	LastName         string     `gorm:"size:100;not null"`
+	PersonalAddress  *string    `gorm:"type:text"`
 	DateOfBirth      *time.Time `gorm:"type:date"`
 	IsActive         bool       `gorm:"not null;default:true"`
 	CreatedAt        time.Time  `gorm:"not null"`

@@ -21,6 +21,7 @@ func NewGORMRepository(db *gorm.DB) *GORMRepository {
 func (repository *GORMRepository) ListOrders(ctx context.Context, filter OrderFilter) ([]Order, int64, error) {
 	query := repository.db.WithContext(ctx).
 		Table("transactions AS t").
+		Joins("LEFT JOIN (SELECT transaction_id, outlet_id, SUM(total_amount) AS refunded FROM transaction_refunds GROUP BY transaction_id,outlet_id) rf ON rf.transaction_id=t.id AND rf.outlet_id=t.outlet_id").
 		Joins("LEFT JOIN order_types AS ot ON ot.id = t.order_type_id AND ot.outlet_id = t.outlet_id").
 		Joins("LEFT JOIN restaurant_tables AS rt ON rt.id = t.restaurant_table_id AND rt.outlet_id = t.outlet_id").
 		Where("t.outlet_id = ?", filter.OutletID)
@@ -48,7 +49,10 @@ func (repository *GORMRepository) ListOrders(ctx context.Context, filter OrderFi
 		t.customer_name AS customer_name, t.paid_at AS ordered_at, ot.id AS order_type_id,
 		ot.code AS order_type_code, ot.name AS order_type_name, rt.id AS restaurant_table_id,
 		rt.name AS restaurant_table_name, t.total_quantity AS total_quantity,
-		t.total_amount AS total_amount, t.status AS status`).
+		t.total_amount AS total_amount, t.status AS status, t.refund_revision AS refund_revision,
+ CASE WHEN t.status IN ('refunded','cancelled') AND t.refund_revision=0 THEN NULL ELSE COALESCE(rf.refunded,0) END AS refunded_amount,
+ CASE WHEN t.status IN ('refunded','cancelled') AND t.refund_revision=0 THEN NULL ELSE t.total_amount-COALESCE(rf.refunded,0) END AS net_after_refund,
+ (t.status IN ('paid','partially_refunded') OR (t.status='refunded' AND t.refund_revision>0)) AS refunds_supported`).
 		Order("t.paid_at DESC, t.transaction_number DESC").
 		Offset((filter.Page - 1) * filter.PageSize).Limit(filter.PageSize).Scan(&values).Error
 	return values, total, err

@@ -4,22 +4,26 @@ import "github.com/danielgtaylor/huma/v2"
 
 // ProductData adalah representasi produk untuk client POS.
 type ProductData struct {
-	ID                 string               `json:"id" format:"uuid"`
-	Name               string               `json:"name"`
-	Price              int64                `json:"price" minimum:"0"`
-	SellingPrice       int64                `json:"selling_price" minimum:"0"`
-	OnlineSellingPrice *int64               `json:"online_selling_price,omitempty" minimum:"0"`
-	CostPrice          *int64               `json:"cost_price,omitempty" minimum:"0"`
-	OnlineCostPrice    *int64               `json:"online_cost_price,omitempty" minimum:"0"`
-	StockStatus        string               `json:"stock_status" enum:"available,out_of_stock"`
-	Description        string               `json:"description"`
-	ImageURL           *string              `json:"image_url,omitempty" format:"uri"`
-	IsHighlighted      bool                 `json:"is_highlighted"`
-	SortOrder          int                  `json:"sort_order"`
-	IsActive           bool                 `json:"is_active"`
-	Category           CategoryData         `json:"category"`
-	ProductTypeCode    string               `json:"product_type" enum:"food,drink,additional"`
-	Variations         []ProductVariantData `json:"variations"`
+	ID                   string               `json:"id" format:"uuid"`
+	Name                 string               `json:"name"`
+	Price                int64                `json:"price" minimum:"0"`
+	SellingPrice         int64                `json:"selling_price" minimum:"0"`
+	OnlineSellingPrice   *int64               `json:"online_selling_price,omitempty" minimum:"0"`
+	CostPrice            *int64               `json:"cost_price,omitempty" minimum:"0"`
+	OnlineCostPrice      *int64               `json:"online_cost_price,omitempty" minimum:"0"`
+	StockStatus          string               `json:"stock_status" enum:"available,out_of_stock"`
+	TrackStock           bool                 `json:"track_stock"`
+	StockQuantity        int64                `json:"stock_quantity" minimum:"0"`
+	LowStockThreshold    int64                `json:"low_stock_threshold" minimum:"0"`
+	EffectiveStockStatus string               `json:"effective_stock_status" enum:"available,low_stock,out_of_stock"`
+	Description          string               `json:"description"`
+	ImageURL             *string              `json:"image_url,omitempty" format:"uri"`
+	IsHighlighted        bool                 `json:"is_highlighted"`
+	SortOrder            int                  `json:"sort_order"`
+	IsActive             bool                 `json:"is_active"`
+	Category             CategoryData         `json:"category"`
+	ProductTypeCode      string               `json:"product_type" enum:"food,drink,additional"`
+	Variations           []ProductVariantData `json:"variations"`
 }
 
 // ProductVariantData adalah variasi harga produk untuk client.

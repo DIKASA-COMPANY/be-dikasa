@@ -86,20 +86,22 @@ type TransactionItemRequest struct {
 
 // TransactionRequest adalah payload pembayaran final dari FE.
 type TransactionRequest struct {
-	OrderTypeID       string                   `json:"order_type_id" validate:"required,uuid" format:"uuid"`
-	RestaurantTableID *string                  `json:"restaurant_table_id,omitempty" validate:"omitempty,uuid" format:"uuid"`
-	PaymentMethod     string                   `json:"payment_method" validate:"required,oneof=cash wallet debit_card qris point transfer" enum:"cash,wallet,debit_card,qris,point,transfer"`
-	WalletID          *string                  `json:"wallet_id,omitempty" validate:"omitempty,uuid" format:"uuid"`
-	Subtotal          int64                    `json:"subtotal" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
-	DiscountAmount    int64                    `json:"discount_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
-	TaxPercentage     float64                  `json:"tax_percentage" validate:"gte=0,lte=100" minimum:"0" maximum:"100"`
-	TaxAmount         int64                    `json:"tax_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
-	TotalAmount       int64                    `json:"total_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
-	PaidAmount        int64                    `json:"paid_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
-	ChangeAmount      int64                    `json:"change_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
-	RoundingAmount    int64                    `json:"rounding_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
-	TipAmount         int64                    `json:"tip_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
-	Items             []TransactionItemRequest `json:"items" validate:"required,min=1,max=100,dive" minItems:"1" maxItems:"100"`
+	SavedOrderID       *string                  `json:"saved_order_id,omitempty" format:"uuid"`
+	SavedOrderRevision *int64                   `json:"saved_order_revision,omitempty" minimum:"1"`
+	OrderTypeID        string                   `json:"order_type_id" validate:"required,uuid" format:"uuid"`
+	RestaurantTableID  *string                  `json:"restaurant_table_id,omitempty" validate:"omitempty,uuid" format:"uuid"`
+	PaymentMethod      string                   `json:"payment_method" validate:"required,oneof=cash wallet debit_card qris point transfer" enum:"cash,wallet,debit_card,qris,point,transfer"`
+	WalletID           *string                  `json:"wallet_id,omitempty" validate:"omitempty,uuid" format:"uuid"`
+	Subtotal           int64                    `json:"subtotal" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
+	DiscountAmount     int64                    `json:"discount_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
+	TaxPercentage      float64                  `json:"tax_percentage" validate:"gte=0,lte=100" minimum:"0" maximum:"100"`
+	TaxAmount          int64                    `json:"tax_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
+	TotalAmount        int64                    `json:"total_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
+	PaidAmount         int64                    `json:"paid_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
+	ChangeAmount       int64                    `json:"change_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
+	RoundingAmount     int64                    `json:"rounding_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
+	TipAmount          int64                    `json:"tip_amount" validate:"gte=0,lte=9007199254740991" minimum:"0" maximum:"9007199254740991"`
+	Items              []TransactionItemRequest `json:"items" validate:"required,min=1,max=100,dive" minItems:"1" maxItems:"100"`
 }
 
 // CreateTransactionInput membungkus payload penyimpanan transaksi.

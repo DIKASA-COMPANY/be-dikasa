@@ -1,6 +1,8 @@
 package payment
 
 import (
+	"be-dikasa/internal/catalog"
+	"be-dikasa/internal/savedorder"
 	"context"
 	"errors"
 	"net/http"
@@ -140,7 +142,7 @@ func transactionMutation(request TransactionRequest) TransactionMutation {
 			ProductName: item.ProductName, VariantName: item.VariantName, UnitPrice: item.UnitPrice,
 			Quantity: item.Quantity, Notes: item.Notes, LineTotal: item.LineTotal})
 	}
-	return TransactionMutation{OrderTypeID: request.OrderTypeID, RestaurantTableID: request.RestaurantTableID,
+	return TransactionMutation{SavedOrderID: request.SavedOrderID, SavedOrderRevision: request.SavedOrderRevision, OrderTypeID: request.OrderTypeID, RestaurantTableID: request.RestaurantTableID,
 		PaymentMethod: request.PaymentMethod, WalletID: request.WalletID, Subtotal: request.Subtotal,
 		DiscountAmount: request.DiscountAmount, TaxPercentage: request.TaxPercentage, TaxAmount: request.TaxAmount,
 		TotalAmount: request.TotalAmount, PaidAmount: request.PaidAmount, ChangeAmount: request.ChangeAmount,
@@ -171,6 +173,12 @@ func transactionData(transaction *Transaction) TransactionData {
 // paymentStatusError mencegah detail database bocor ke response API.
 func paymentStatusError(err error) *sharederrors.StatusError {
 	switch {
+	case errors.Is(err, savedorder.ErrAlreadyPaid), errors.Is(err, savedorder.ErrConflict), errors.Is(err, savedorder.ErrNotFound):
+		return savedorder.StatusError(err)
+	case errors.Is(err, catalog.ErrInsufficientStock):
+		return sharederrors.New(http.StatusConflict, "STOK_TIDAK_CUKUP", "Stok berubah atau tidak cukup. Periksa katalog dan pesanan sebelum membayar.", nil)
+	case errors.Is(err, catalog.ErrCatalogChanged):
+		return sharederrors.New(http.StatusConflict, "KATALOG_BERUBAH", "Produk, variasi, atau harga berubah. Periksa ulang pesanan.", nil)
 	case errors.Is(err, ErrUserWithoutOutlet):
 		return sharederrors.New(http.StatusForbidden, "USER_TANPA_OUTLET", "User belum terhubung ke outlet.", nil)
 	case errors.Is(err, ErrForbidden):

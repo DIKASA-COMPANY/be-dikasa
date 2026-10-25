@@ -1,0 +1,42 @@
+meta {
+  name: Reject Stale Saved Order Revision
+  type: http
+  seq: 65
+}
+
+put {
+  url: {{baseUrl}}/dikasa/v1/saved-orders/{{savedOrderId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "request_id": "{{savedStaleRequestId}}",
+  "label": "Updated parked order",
+  "order_type_id": "{{orderTypeId}}",
+  "items": [
+    {
+      "product_id": "{{productId}}",
+      "product_name": "{{savedProductName}}",
+      "unit_price": {{savedUnitPrice}},
+      "quantity": 1,
+      "notes": "Less spicy"
+    }
+  ],
+  "expected_revision": 1
+}
+}
+
+assert {
+  res.status: eq 409
+  res.body.error.code: eq PESANAN_TERSIMPAN_BERUBAH
+}
+
+docs {
+  Run after one successful Update (latest revision2). This deliberately submits stale revision1.
+}

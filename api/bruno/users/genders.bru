@@ -1,0 +1,21 @@
+meta {
+  name: Profile Gender Choices
+  type: http
+  seq: 22
+}
+get {
+  url: {{baseUrl}}/dikasa/v1/users/me/genders
+  body: none
+  auth: bearer
+}
+auth:bearer {
+  token: {{accessToken}}
+}
+assert {
+  res.status: eq 200
+}
+tests {
+  test("reference options are an array", function () {
+    expect(res.body.data).to.be.an("array");
+  });
+}

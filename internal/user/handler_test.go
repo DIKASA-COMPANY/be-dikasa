@@ -62,3 +62,13 @@ func TestHandlerMeRequiresIdentity(t *testing.T) {
 		t.Fatalf("expected unauthorized StatusError, got %T %v", err, err)
 	}
 }
+
+func TestChangePasswordUsesByteBoundsForUnicode(t *testing.T) {
+	r := &settingsRepository{account: &User{ID: "a", PasswordHash: "hash:oldpassword"}}
+	h := NewHandler(NewService(r, WithCredentialHasher(plainCredentialHasher{})))
+	ctx := WithAuthenticatedUserID(context.Background(), "a")
+	_, e := h.ChangePassword(ctx, &ChangePasswordInput{Body: ChangePasswordRequest{CurrentPassword: "oldpassword", NewPassword: "密码新值", NewPasswordConfirmation: "密码新值"}})
+	if e != nil {
+		t.Fatal("valid UTF-8 byte length rejected", e)
+	}
+}

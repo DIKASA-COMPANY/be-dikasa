@@ -1,0 +1,26 @@
+meta {
+  name: Configure Shared Stock
+  type: http
+  seq: 50
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/products/{{productId}}/stock
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "request_id": "{{stockRequestId}}", "reason": "Initial inventory",
+    "track_stock": true, "initial_quantity": 20, "low_stock_threshold": 5
+  }
+}
+
+assert {
+  res.status: eq 200
+}

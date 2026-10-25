@@ -1,0 +1,33 @@
+meta {
+  name: Close Cash Session
+  type: http
+  seq: 83
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/cash-sessions/{{closeSessionId}}/close
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "counted_cash": {{closeCountedCash}},
+  "reason": "Physical count verified",
+  "request_id": "{{closeRequestId}}",
+  "preview_hash": "{{closePreviewHash}}"
+}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.close_request_id: eq {{closeRequestId}}
+}
+
+docs {
+  Use marked development sessions only. Set closeSessionId from Current Cash Session. Freeze session, count, reason, request UUID and preview hash until outcome is known. Read session detail to recover; do not replace session ID with a newly opened till.
+}

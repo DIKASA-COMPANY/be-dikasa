@@ -6,6 +6,47 @@ import (
 	"testing"
 )
 
+func TestLocalModeNeedsNeitherFirebaseNorSMTP(t *testing.T) {
+	values := map[string]string{"AUTH_MODE": "local", "DATABASE_URL": "postgres://localhost/dikasa", "LOCAL_AUTH_SECRET": "0123456789abcdef0123456789abcdef"}
+	cfg, err := Load(func(key string) string { return values[key] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AuthMode != "local" || cfg.Mail.Mode != "disabled" {
+		t.Fatalf("unexpected mode: %+v", cfg)
+	}
+	values["LOCAL_AUTH_SECRET"] = "short"
+	if _, err := Load(func(key string) string { return values[key] }); err == nil {
+		t.Fatal("accepted weak local auth secret")
+	}
+	values["AUTH_MODE"] = "typo"
+	if _, err := Load(func(key string) string { return values[key] }); err == nil {
+		t.Fatal("accepted unknown mode")
+	}
+}
+
+func TestLocalImageStorageNeedsTrustedBaseURL(t *testing.T) {
+	values := map[string]string{"AUTH_MODE": "local", "DATABASE_URL": "postgres://localhost/dikasa", "LOCAL_AUTH_SECRET": "0123456789abcdef0123456789abcdef", "IMAGE_STORAGE_MODE": "local", "LOCAL_IMAGE_DIRECTORY": "uploads"}
+	if _, err := Load(func(k string) string { return values[k] }); err == nil {
+		t.Fatal("accepted missing image base URL")
+	}
+	values["PUBLIC_BASE_URL"] = "http://127.0.0.1:8081"
+	if _, err := Load(func(k string) string { return values[k] }); err != nil {
+		t.Fatal(err)
+	}
+	values["PUBLIC_BASE_URL"] = "http://user:secret@host/path?bad=true"
+	if _, err := Load(func(k string) string { return values[k] }); err == nil {
+		t.Fatal("accepted unsafe base URL")
+	}
+}
+
+func TestFirebaseRemainsDefaultAndRequiresCredentials(t *testing.T) {
+	values := map[string]string{"DATABASE_URL": "postgres://localhost/dikasa", "LOCAL_AUTH_SECRET": "0123456789abcdef0123456789abcdef"}
+	if _, err := Load(func(key string) string { return values[key] }); err == nil {
+		t.Fatal("silently fell back to local authentication")
+	}
+}
+
 func TestLoadRequiresApplicationConfiguration(t *testing.T) {
 	_, err := Load(func(string) string { return "" })
 	if err == nil {
@@ -105,5 +146,13 @@ func TestLoadRequiresOTPAndSMTPConfiguration(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected missing OTP and SMTP configuration error")
+	}
+}
+
+func TestCashProofDirectoryDefaultsWithoutSMTP(t *testing.T) {
+	v := map[string]string{"AUTH_MODE": "local", "DATABASE_URL": "postgres://localhost/dikasa", "LOCAL_AUTH_SECRET": "0123456789abcdef0123456789abcdef", "IMAGE_STORAGE_MODE": "local", "LOCAL_IMAGE_DIRECTORY": "uploads", "PUBLIC_BASE_URL": "http://127.0.0.1:8081"}
+	c, e := Load(func(k string) string { return v[k] })
+	if e != nil || c.CashProofDirectory != filepath.Join("uploads", "cash-proofs") {
+		t.Fatal("private proofs missing in local mode", c.CashProofDirectory, e)
 	}
 }

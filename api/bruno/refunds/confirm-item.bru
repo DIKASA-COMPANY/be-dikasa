@@ -1,0 +1,44 @@
+meta {
+  name: Record Manually Returned Money
+  type: http
+  seq: 72
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/transactions/{{refundTransactionId}}/refunds
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "mode": "items",
+  "method": "cash",
+  "reason": "Unopened item returned",
+  "expected_refund_revision": {{refundRevision}},
+  "items": [
+    {
+      "transaction_item_id": "{{refundItemId}}",
+      "quantity": 1,
+      "restock_quantity": 0
+    }
+  ],
+  "request_id": "{{refundRequestId}}",
+  "preview_hash": "{{refundPreviewHash}}"
+}
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.refund_number: isNotEmpty
+  res.body.data.items: isArray
+}
+
+docs {
+  Confirm only money actually returned manually. Active outlet cash session required.
+  New intent=newUUID. Timeout: freeze this exact body/UUID and use Lookup or replay; do not hand money over again.
+}

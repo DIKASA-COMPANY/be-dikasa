@@ -1,0 +1,23 @@
+meta {
+  name: Till cash activity
+  type: http
+  seq: 70
+}
+get {
+  url: {{baseUrl}}/dikasa/v1/cash-sessions/{{cashSessionId}}/activity?page=1&page_size=20
+  body: none
+  auth: bearer
+}
+auth:bearer {
+  token: {{accessToken}}
+}
+assert {
+  res.status: eq 200
+}
+docs {
+  Use disposable test accounts for writes. Keep the exact request UUID/body/photo on a lost reply; never retarget another session or retry with a fresh UUID. Proof is private and optional.
+}
+
+tests {
+  test("full totals and paged events", function () { expect(res.body.data.events).to.be.an("array"); expect(res.body.data.capabilities.can_create).to.be.a("boolean"); expect(res.body.meta.total).to.be.a("number"); });
+}

@@ -1,0 +1,42 @@
+meta {
+  name: Replay Confirmed Refund
+  type: http
+  seq: 75
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/transactions/{{refundTransactionId}}/refunds
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "mode": "items",
+  "method": "cash",
+  "reason": "Unopened item returned",
+  "expected_refund_revision": {{refundRevision}},
+  "items": [
+    {
+      "transaction_item_id": "{{refundItemId}}",
+      "quantity": 1,
+      "restock_quantity": 0
+    }
+  ],
+  "request_id": "{{refundRequestId}}",
+  "preview_hash": "{{refundPreviewHash}}"
+}
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.request_id: eq {{refundRequestId}}
+}
+
+docs {
+  Run with exactly the original confirmation variables/body. Returns original immutable response even after later refunds/session changes.
+}

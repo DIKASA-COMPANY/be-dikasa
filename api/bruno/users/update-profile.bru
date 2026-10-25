@@ -19,9 +19,16 @@ body:multipart-form {
   last_name: Doe
   phone_number: 081234567890
   email: jane@example.com
+  date_of_birth: 1990-08-10
+  personal_address: Example personal address
+  ~gender_id: {{genderId}}
 }
 
 assert {
   res.status: eq 200
   res.body.data.first_name: eq Jane
+}
+
+docs {
+  Partial multipart update. Omit fields to preserve them; send an empty optional email/date_of_birth/gender_id/personal_address to clear. Role, username and outlet are read-only. Avatar is optional PNG/JPEG <=3 MiB.
 }

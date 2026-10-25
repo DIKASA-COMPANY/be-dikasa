@@ -1,0 +1,24 @@
+meta {
+  name: Cash Session History
+  type: http
+  seq: 80
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/cash-sessions?page=1&page_size=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+}
+
+docs {
+  Use marked development sessions only. Set closeSessionId from Current Cash Session. Freeze session, count, reason, request UUID and preview hash until outcome is known. Read session detail to recover; do not replace session ID with a newly opened till.
+}

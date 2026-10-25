@@ -95,3 +95,24 @@ func TestGORMRepositoryMapsRecordNotFound(t *testing.T) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
+
+func TestTranslatedDuplicateProfileError(t *testing.T) {
+	if !errors.Is(normalizeUserWriteError(gorm.ErrDuplicatedKey), ErrConflict) {
+		t.Fatal("translated unique constraint must map to conflict")
+	}
+}
+func TestProfileReloadOccursBeforeCommit(t *testing.T) {
+	r, m := newRepositoryMock(t)
+	m.ExpectBegin()
+	m.ExpectQuery(`SELECT \* FROM "users"`).WillReturnRows(sqlmock.NewRows([]string{"id", "first_name", "phone_number"}).AddRow("user-id", "Old", "0812345678"))
+	m.ExpectExec(`UPDATE "users" SET`).WillReturnResult(sqlmock.NewResult(0, 1))
+	m.ExpectQuery(`SELECT \* FROM "users"`).WillReturnError(errors.New("reload failed"))
+	m.ExpectRollback()
+	_, err := r.PatchProfile(context.Background(), &User{ID: "user-id", FirstName: "New"}, ProfileMutation{Fields: map[string]bool{"first_name": true}}, nil)
+	if err == nil {
+		t.Fatal("reload failure hidden")
+	}
+	if e := m.ExpectationsWereMet(); e != nil {
+		t.Fatal(e)
+	}
+}

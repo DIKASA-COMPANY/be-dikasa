@@ -1,0 +1,24 @@
+meta {
+  name: Resolve Refund By Request
+  type: http
+  seq: 73
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/refunds/by-request/{{refundRequestId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.request_id: eq {{refundRequestId}}
+}
+
+docs {
+  Expected200 after confirmation. A404 while uncertain is unresolved, not proof of failure; same-command retry remains safe.
+}

@@ -1,11 +1,14 @@
 package payment
 
 import (
+	"be-dikasa/internal/catalog"
+	"be-dikasa/internal/savedorder"
 	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // GORMRepository mengambil konfigurasi pembayaran melalui PostgreSQL/GORM.
@@ -110,15 +113,54 @@ func (repository *GORMRepository) FindOpenCashSessionIDByOutletID(ctx context.Co
 // CreateTransaction menyimpan header dan seluruh item dalam satu transaksi database.
 func (repository *GORMRepository) CreateTransaction(ctx context.Context, value *Transaction) error {
 	return repository.db.WithContext(ctx).Transaction(func(transaction *gorm.DB) error {
+		var draft *savedorder.Order
+		if value.SavedOrderID != nil {
+			items := make([]savedorder.Item, 0, len(value.Items))
+			for _, i := range value.Items {
+				items = append(items, savedorder.Item{ProductID: i.ProductID, ProductVariantID: i.ProductVariantID, ProductName: i.ProductName, VariantName: i.VariantName, UnitPrice: i.UnitPrice, Quantity: i.Quantity, Notes: i.Notes})
+			}
+			var err error
+			draft, err = savedorder.LockForCheckout(ctx, transaction, value.OutletID, *value.SavedOrderID, *value.SavedOrderRevision, value.OrderTypeID, items)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Hold the session through commit so closure cannot miss an in-flight sale.
+		var session struct{ ID string }
+		if err := transaction.Table("cash_sessions").Select("id").Clauses(clause.Locking{Strength: "SHARE"}).Where("id = ? AND outlet_id = ? AND status = 'open'", value.CashSessionID, value.OutletID).Take(&session).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrCashSessionNotFound
+			}
+			return err
+		}
 		if err := transaction.Omit("Items", "Wallet").Create(value).Error; err != nil {
 			return normalizePaymentWriteError(err)
 		}
+		stockItems := make([]catalog.StockSaleItem, 0, len(value.Items))
+		for _, item := range value.Items {
+			stockItems = append(stockItems, catalog.StockSaleItem{ProductID: item.ProductID, VariantID: item.ProductVariantID, UnitPrice: item.UnitPrice, Quantity: item.Quantity})
+		}
+		if err := catalog.DeductSaleStock(ctx, transaction, value.OutletID, value.CreatedBy, value.ID, stockItems); err != nil {
+			return err
+		}
+		categories, err := catalog.CaptureSaleCategories(ctx, transaction, value.OutletID, stockItems)
+		if err != nil {
+			return err
+		}
 		for index := range value.Items {
+			category := categories[value.Items[index].ProductID]
+			value.Items[index].CategoryIDSnapshot = &category.ID
+			value.Items[index].CategoryNameSnapshot = &category.Name
+
 			value.Items[index].TransactionID = value.ID
 			value.Items[index].OutletID = value.OutletID
 			if err := transaction.Create(&value.Items[index]).Error; err != nil {
 				return normalizePaymentWriteError(err)
 			}
+		}
+		if draft != nil {
+			return savedorder.CompleteCheckout(ctx, transaction, draft, value.ID)
 		}
 		return nil
 	})

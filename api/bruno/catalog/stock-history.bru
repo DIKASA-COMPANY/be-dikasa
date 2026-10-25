@@ -1,0 +1,19 @@
+meta {
+  name: Stock Movement History
+  type: http
+  seq: 52
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/products/{{productId}}/stock-movements?page=1&page_size=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+}

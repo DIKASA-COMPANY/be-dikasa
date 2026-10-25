@@ -1,5 +1,19 @@
 # Dikasa Backend
 
+> Local two-repository workspace records: [Changelog](../CHANGELOG.md),
+> [Feature history](../FEATURE_HISTORY.md), [Backlog](../BACKLOG.md).
+> These parent-folder documents should be shared alongside both checkouts.
+
+Product photo uploads can now use persistent local storage without Firebase.
+Shared stock tracking, manager inventory adjustments/history, variation-aware
+checkout validation and real XLSX exports are available. See
+[product images and stock setup](docs/development/product-stock-and-images.md).
+
+For local development **without Firebase or SMTP**, follow
+[Local authentication setup](docs/development/local-auth.md). It uses PostgreSQL
+passwords, one-hour signed tokens and an explicit development seed command;
+Firebase remains available through `AUTH_MODE=firebase`.
+
 Dikasa Backend is a Go API for restaurant operations. The current implementation
 provides business-owner registration with email OTP verification, PostgreSQL
 credential validation, Firebase token issuance, authenticated POS catalogs,
@@ -434,9 +448,9 @@ preserve foreign-key ordering.
 
 ### The API exits with missing configuration
 
-The application validates all required variables during startup. Compare your
-terminal environment with `.env.example`. Remember that the application does
-not automatically load `.env`.
+The application loads `.env` from the working directory and validates required
+variables during startup. Compare your configuration with `.env.example` or
+`.env.local.example`. Existing process variables take precedence over `.env`.
 
 ### PostgreSQL migration fails on `pgcrypto`
 
@@ -471,3 +485,54 @@ issued again.
 
 At least one unique value is already registered. Use a different username,
 owner phone, owner email, or business email for a new local test registration.
+
+## Saved unpaid orders
+
+Migration000010 connects persistent draft carts, outlet browsing, revision-safe editing,
+retry replay and atomic draft checkout. See [saved-orders.md](docs/development/saved-orders.md)
+for setup, recovery, APIs, Bruno examples and tests.
+
+## Refunds and cancellation
+
+Whole-remaining and item-quantity refunds preserve original receipts and record
+manually returned money. Stock return is explicit and requires original tracked-sale
+evidence. Migration000011 is required; see [refund setup/API guide](docs/development/refunds.md).
+
+Cash-session closing, reconciliation and recovery: [Cash reconciliation guide](docs/development/cash-reconciliation.md).
+
+Four sales reports and XLSX: [Reporting guide](docs/development/sales-reports.md).
+
+
+## Account settings (24 October 2026)
+
+The cashier menu's **Pengaturan Akun** supports self-profile details, local profile
+photos, PIN setup/change and local-auth password changes. Restart the backend and
+Flutter after updating. Migration000014 (nullable personal address) is already
+applied in this workspace's local database. Fresh installs must also apply
+`migrations/000014_add_user_personal_address.up.sql` in the backend after000013.
+
+Photos use the configured `LOCAL_IMAGE_DIRECTORY/avatars` in local storage mode.
+Back up those files; changing to Firebase does not automatically copy old media.
+Password changes require `can_change_password=true`, do not revoke existing JWTs,
+and do not manage Firebase passwords. See the complete [account implementation
+log](../ACCOUNT_SETTINGS_IMPLEMENTATION_LOG_2026-10-24.md) for contracts, tests,
+configuration, restart steps and limitations.
+
+
+## Cash-in/out and till activity (24 October2026)
+
+Restart the backend and Flutter, then choose **Menu → Kas Kasir / Uang Masuk-Keluar**.
+The opening cashier or manager may record movements; authenticated outlet staff
+can read history. Optional evidence is private local storage, defaulting to
+`LOCAL_IMAGE_DIRECTORY/cash-proofs` in local image mode; use `CASH_PROOF_DIRECTORY`
+to configure it explicitly. Keep files with the database backup.
+
+Migration000015 is applied to this workspace's local DB. Fresh backend installs
+must apply `migrations/000015_create_cash_movements.up.sql` after000014. No real
+cash record or till closure was created during verification. Existing frozen
+closings are preserved. Pending uncertain writes must be recovered/retried with
+the same intent; inspect history before re-entry after browser reload/logout.
+
+See the [cash movement implementation log](../CASH_MOVEMENTS_IMPLEMENTATION_LOG_2026-10-24.md)
+for API, permissions, corrections, tests and storage/recovery limitations. General
+expense accounting and private Firebase evidence storage remain separate work.

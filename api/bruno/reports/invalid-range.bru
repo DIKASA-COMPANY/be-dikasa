@@ -1,0 +1,17 @@
+meta {
+ name: Reject reversed report dates
+ type: http
+ seq: 95
+}
+get {
+ url: {{baseUrl}}/dikasa/v1/reports/summary?start_date=2026-10-24&end_date=2026-10-23
+ body: none
+ auth: bearer
+}
+auth:bearer {
+ token: {{accessToken}}
+}
+assert {
+ res.status: eq 422
+ res.body.error.code: eq FILTER_LAPORAN_TIDAK_VALID
+}

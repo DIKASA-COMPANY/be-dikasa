@@ -54,6 +54,9 @@ type Product struct {
 	CostPrice          *int64           `gorm:"column:cost_price"`
 	OnlineCostPrice    *int64           `gorm:"column:online_cost_price"`
 	StockStatus        string           `gorm:"size:20;not null"`
+	TrackStock         bool             `gorm:"not null"`
+	StockQuantity      int64            `gorm:"not null"`
+	LowStockThreshold  int64            `gorm:"not null"`
 	Description        string           `gorm:"type:text;not null"`
 	ImageURL           *string          `gorm:"type:text"`
 	ImageObjectName    *string          `gorm:"type:text"`

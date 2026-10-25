@@ -1,0 +1,24 @@
+meta {
+  name: Delete Unpaid Saved Order
+  type: http
+  seq: 67
+}
+
+delete {
+  url: {{baseUrl}}/dikasa/v1/saved-orders/{{savedOrderId}}?request_id={{savedDeleteRequestId}}&expected_revision={{savedOrderRevision}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.status: eq deleted
+}
+
+docs {
+  Alternative to paying. Retrying unchanged UUID/revision returns the confirmed deleted snapshot.
+}

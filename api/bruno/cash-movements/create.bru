@@ -1,0 +1,31 @@
+meta {
+  name: Create cash movement
+  type: http
+  seq: 71
+}
+post {
+  url: {{baseUrl}}/dikasa/v1/cash-sessions/{{cashSessionId}}/movements
+  body: multipartForm
+  auth: bearer
+}
+auth:bearer {
+  token: {{accessToken}}
+}
+body:multipart-form {
+  request_id: {{cashMovementRequestId}}
+  kind: out
+  name: Bank deposit
+  amount: 10000
+  reason: Deposit from till
+  ~proof: @file(./evidence.png)
+}
+assert {
+  res.status: eq 201
+}
+docs {
+  Use disposable test accounts for writes. Keep the exact request UUID/body/photo on a lost reply; never retarget another session or retry with a fresh UUID. Proof is private and optional.
+}
+
+tests {
+  test("immutable identity returned", function () { expect(res.body.data.id).to.be.a("string"); expect(res.body.data.request_id).to.be.a("string"); expect(res.body.data).not.to.have.property("proof_object_key"); });
+}

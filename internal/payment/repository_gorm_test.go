@@ -79,7 +79,13 @@ func TestGORMRepositoryListsActiveWalletsInDisplayOrder(t *testing.T) {
 func TestGORMRepositoryCreatesTransactionAndItemsAtomically(t *testing.T) {
 	repository, mock := newPaymentRepositoryMock(t)
 	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT .*FROM "cash_sessions".*FOR SHARE`).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("cash-session-id"))
 	mock.ExpectExec(`INSERT INTO "transactions"`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SELECT .*FROM "products".*FOR UPDATE`).WillReturnRows(sqlmock.NewRows([]string{"id", "outlet_id", "category_id", "price", "stock_status", "is_active"}).AddRow("product-id", "outlet-id", "category-id", 21000, "available", true))
+	mock.ExpectQuery(`SELECT .*FROM "product_categories"`).WillReturnRows(sqlmock.NewRows([]string{"id", "is_active"}).AddRow("category-id", true))
+	mock.ExpectQuery(`SELECT .*FROM "product_variants"`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`SELECT id,category_id FROM "products"`).WillReturnRows(sqlmock.NewRows([]string{"id", "category_id"}).AddRow("product-id", "category-id"))
+	mock.ExpectQuery(`SELECT .*FROM "product_categories".*FOR SHARE`).WillReturnRows(sqlmock.NewRows([]string{"id", "outlet_id", "name", "is_active"}).AddRow("category-id", "outlet-id", "Food", true))
 	mock.ExpectExec(`INSERT INTO "transaction_items"`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 	transaction := &Transaction{
@@ -105,7 +111,13 @@ func TestGORMRepositoryCreatesTransactionAndItemsAtomically(t *testing.T) {
 func TestGORMRepositoryRollsBackWhenTransactionItemFails(t *testing.T) {
 	repository, mock := newPaymentRepositoryMock(t)
 	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT .*FROM "cash_sessions".*FOR SHARE`).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("cash-session-id"))
 	mock.ExpectExec(`INSERT INTO "transactions"`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`SELECT .*FROM "products".*FOR UPDATE`).WillReturnRows(sqlmock.NewRows([]string{"id", "outlet_id", "category_id", "price", "stock_status", "is_active"}).AddRow("product-id", "outlet-id", "category-id", 0, "available", true))
+	mock.ExpectQuery(`SELECT .*FROM "product_categories"`).WillReturnRows(sqlmock.NewRows([]string{"id", "is_active"}).AddRow("category-id", true))
+	mock.ExpectQuery(`SELECT .*FROM "product_variants"`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectQuery(`SELECT id,category_id FROM "products"`).WillReturnRows(sqlmock.NewRows([]string{"id", "category_id"}).AddRow("product-id", "category-id"))
+	mock.ExpectQuery(`SELECT .*FROM "product_categories".*FOR SHARE`).WillReturnRows(sqlmock.NewRows([]string{"id", "outlet_id", "name", "is_active"}).AddRow("category-id", "outlet-id", "Food", true))
 	mock.ExpectExec(`INSERT INTO "transaction_items"`).WillReturnError(errors.New("item insert failed"))
 	mock.ExpectRollback()
 	transaction := &Transaction{

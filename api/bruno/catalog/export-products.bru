@@ -1,0 +1,19 @@
+meta {
+  name: Export Product Workbook
+  type: http
+  seq: 53
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/products/export.xlsx?include_inactive=false
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+}

@@ -1,0 +1,49 @@
+meta {
+  name: Update Saved Order
+  type: http
+  seq: 63
+}
+
+put {
+  url: {{baseUrl}}/dikasa/v1/saved-orders/{{savedOrderId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "request_id": "{{savedUpdateRequestId}}",
+  "label": "Updated parked order",
+  "order_type_id": "{{orderTypeId}}",
+  "items": [
+    {
+      "product_id": "{{productId}}",
+      "product_name": "{{savedProductName}}",
+      "unit_price": {{savedUnitPrice}},
+      "quantity": 1,
+      "notes": "Less spicy"
+    }
+  ],
+  "expected_revision": {{savedOrderRevision}}
+}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.status: eq open
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setEnvVar("savedOrderId", res.body.data.id);
+    bru.setEnvVar("savedOrderRevision", res.body.data.revision);
+  }
+}
+
+docs {
+  Capture the confirmed revision before checkout. Each intentional edit needs a fresh UUID.
+}
