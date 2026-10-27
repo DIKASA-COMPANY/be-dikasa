@@ -1,0 +1,35 @@
+meta {
+  name: Preview Physical Cash Count
+  type: http
+  seq: 82
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/cash-sessions/{{closeSessionId}}/close/preview
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "counted_cash": {{closeCountedCash}},
+  "reason": "Physical count verified"
+}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.preview_hash: isNotEmpty
+}
+
+script:post-response {
+  if (res.status === 200) bru.setEnvVar("closePreviewHash",res.body.data.preview_hash);
+}
+
+docs {
+  Use marked development sessions only. Set closeSessionId from Current Cash Session. Freeze session, count, reason, request UUID and preview hash until outcome is known. Read session detail to recover; do not replace session ID with a newly opened till.
+}

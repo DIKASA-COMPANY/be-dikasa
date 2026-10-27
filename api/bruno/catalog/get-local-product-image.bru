@@ -1,0 +1,13 @@
+meta {
+  name: Read Public Product Photo
+  type: http
+  seq: 54
+}
+get {
+  url: {{productImageUrl}}
+  body: none
+  auth: none
+}
+assert {
+  res.status: eq 200
+}

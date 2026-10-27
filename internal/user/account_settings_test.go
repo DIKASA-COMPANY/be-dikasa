@@ -115,3 +115,15 @@ func TestChangePasswordVerifiesCurrentAndRejectsReuse(t *testing.T) {
 		t.Fatalf("change password: hash=%q err=%v", repository.passwordHash, err)
 	}
 }
+
+func TestUncertainProfileCommitDoesNotDeleteReferencedUpload(t *testing.T) {
+	out := "outlet"
+	object := "new-avatar"
+	repo := &settingsRepository{account: &User{ID: "a", OutletID: &out, FirstName: "Jane", PhoneNumber: "0812345678", AvatarObjectName: &object}, updateErr: errors.New("commit reply lost")}
+	store := &fakeAvatarStore{stored: AvatarImage{URL: "https://new", ObjectName: object}}
+	svc := NewService(repo, WithAvatarStore(store))
+	_, err := svc.UpdateProfile(context.Background(), "a", ProfileMutation{Fields: map[string]bool{}, Avatar: &AvatarUpload{Reader: bytes.NewReader([]byte("image")), Size: 5}})
+	if err == nil || len(store.deleted) != 0 {
+		t.Fatal("potentially committed avatar was deleted", store.deleted)
+	}
+}

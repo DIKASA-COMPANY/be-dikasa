@@ -1,0 +1,45 @@
+meta {
+  name: Preview Whole Remaining Refund
+  type: http
+  seq: 76
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/transactions/{{refundTransactionId}}/refunds/preview
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "mode": "full",
+  "method": "cash",
+  "reason": "Unopened item returned",
+  "expected_refund_revision": {{refundRevision}},
+  "items": [
+    {
+      "transaction_item_id": "{{refundItemId}}",
+      "quantity": {{refundRemainingQuantity}},
+      "restock_quantity": 0
+    }
+  ]
+}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.result_status: eq refunded
+}
+
+script:post-response {
+  if (res.status === 200) bru.setEnvVar("refundFullPreviewHash", res.body.data.preview_hash);
+}
+
+docs {
+  Example for a one-line receipt. For multiple lines include every remaining item ID/quantity.
+  Refresh detail after a previous refund and use actual remaining quantity. No payout yet.
+}

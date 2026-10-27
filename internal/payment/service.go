@@ -149,6 +149,17 @@ func (service *Service) DeleteWallet(ctx context.Context, userID, walletID strin
 
 // CreateTransaction memvalidasi snapshot FE lalu menyimpan pembayaran dan item secara atomik.
 func (service *Service) CreateTransaction(ctx context.Context, userID string, mutation TransactionMutation) (*Transaction, error) {
+	// Draft APIs and linked checkout share the same cashier/manager role boundary.
+	if mutation.SavedOrderID != nil {
+		account, e := service.accounts.FindByIDWithRole(ctx, userID)
+		if e != nil {
+			return nil, ErrForbidden
+		}
+		role := strings.ToLower(account.Role.Name)
+		if role != "cashier" && role != "manager" {
+			return nil, ErrForbidden
+		}
+	}
 	outletID, err := service.scope(ctx, userID, false)
 	if err != nil {
 		return nil, err
@@ -169,6 +180,7 @@ func (service *Service) CreateTransaction(ctx context.Context, userID string, mu
 		return nil, err
 	}
 	value := &Transaction{
+		SavedOrderID: mutation.SavedOrderID, SavedOrderRevision: mutation.SavedOrderRevision,
 		ID: uuid.NewString(), TransactionNumber: service.numberGenerator(), OutletID: outletID,
 		CashSessionID: cashSessionID, CreatedBy: userID, OrderTypeID: mutation.OrderTypeID,
 		RestaurantTableID: cleanOptionalString(mutation.RestaurantTableID), PaymentMethod: mutation.PaymentMethod,
@@ -185,6 +197,14 @@ func (service *Service) CreateTransaction(ctx context.Context, userID string, mu
 }
 
 func validateTransactionMutation(outletID string, mutation TransactionMutation) ([]TransactionItem, int, error) {
+	if (mutation.SavedOrderID == nil) != (mutation.SavedOrderRevision == nil) {
+		return nil, 0, ErrValidation
+	}
+	if mutation.SavedOrderID != nil {
+		if _, err := uuid.Parse(*mutation.SavedOrderID); err != nil || *mutation.SavedOrderRevision < 1 {
+			return nil, 0, ErrValidation
+		}
+	}
 	if strings.TrimSpace(mutation.OrderTypeID) == "" || !validPaymentMethod(mutation.PaymentMethod) || len(mutation.Items) == 0 || len(mutation.Items) > maxTransactionItems {
 		return nil, 0, ErrValidation
 	}

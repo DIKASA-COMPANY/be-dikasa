@@ -54,7 +54,7 @@ CREATE TABLE transactions (
     tax_percentage NUMERIC(5, 2) NOT NULL CHECK (tax_percentage BETWEEN 0 AND 100),
     tax_amount BIGINT NOT NULL DEFAULT 0 CHECK (tax_amount >= 0),
     total_amount BIGINT NOT NULL CHECK (total_amount >= 0),
-    paid_amount BIGINT NOT NULL CHECK (paid_amount >= 0),
+    paid_amount BIGINT NOT NULL CONSTRAINT transactions_paid_amount_nonnegative_check CHECK (paid_amount >= 0),
     change_amount BIGINT NOT NULL DEFAULT 0 CHECK (change_amount >= 0),
     rounding_amount BIGINT NOT NULL DEFAULT 0 CHECK (rounding_amount >= 0),
     tip_amount BIGINT NOT NULL DEFAULT 0 CHECK (tip_amount >= 0),

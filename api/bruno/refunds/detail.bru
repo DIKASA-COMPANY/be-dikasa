@@ -1,0 +1,31 @@
+meta {
+  name: Receipt Refund Detail
+  type: http
+  seq: 70
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/transactions/{{refundTransactionId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.items: isArray
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setEnvVar("refundRevision", res.body.data.refund_revision);
+    if (res.body.data.items.length) bru.setEnvVar("refundItemId", res.body.data.items[0].id);
+  }
+}
+
+docs {
+  Use a marked test sale. Do not refresh captured revision/selection while an uncertain confirmation is pending.
+}

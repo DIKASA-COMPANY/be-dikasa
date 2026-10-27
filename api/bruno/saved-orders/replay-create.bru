@@ -1,0 +1,43 @@
+meta {
+  name: Replay Original Creation
+  type: http
+  seq: 64
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/saved-orders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "request_id": "{{savedCreateRequestId}}",
+  "label": "Parked order example",
+  "order_type_id": "{{orderTypeId}}",
+  "items": [
+    {
+      "product_id": "{{productId}}",
+      "product_name": "{{savedProductName}}",
+      "unit_price": {{savedUnitPrice}},
+      "quantity": 1,
+      "notes": "Less spicy"
+    }
+  ]
+}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.id: eq {{savedOrderId}}
+  res.body.data.revision: eq 1
+}
+
+docs {
+  Run after Update without changing Create UUID/body; original revision1 must replay.
+  Do not capture this old revision over the latest savedOrderRevision variable.
+}

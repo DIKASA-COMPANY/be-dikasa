@@ -6,7 +6,7 @@ import "time"
 type ListOrdersInput struct {
 	Search      string `query:"search" maxLength:"100"`
 	OrderTypeID string `query:"order_type_id" format:"uuid"`
-	Status      string `query:"status" enum:"paid,refunded,cancelled"`
+	Status      string `query:"status" enum:"paid,partially_refunded,refunded,cancelled"`
 	Page        int    `query:"page" default:"1" minimum:"1"`
 	PageSize    int    `query:"page_size" default:"30" minimum:"1" maximum:"100"`
 }
@@ -34,16 +34,20 @@ type RestaurantTableData struct {
 
 // OrderData adalah satu baris daftar order.
 type OrderData struct {
-	ID              string               `json:"id" format:"uuid"`
-	ReceiptNumber   string               `json:"receipt_number"`
-	CustomerID      *string              `json:"customer_id,omitempty" format:"uuid"`
-	CustomerName    string               `json:"customer_name"`
-	OrderedAt       time.Time            `json:"ordered_at" format:"date-time"`
-	OrderType       OrderListTypeData    `json:"order_type"`
-	RestaurantTable *RestaurantTableData `json:"restaurant_table,omitempty"`
-	TotalQuantity   int                  `json:"total_quantity" minimum:"1"`
-	TotalAmount     int64                `json:"total_amount" minimum:"0"`
-	Status          string               `json:"status" enum:"paid,refunded,cancelled"`
+	RefundedAmount   *int64               `json:"refunded_amount"`
+	NetAfterRefund   *int64               `json:"net_after_refund"`
+	RefundRevision   int64                `json:"refund_revision"`
+	RefundsSupported bool                 `json:"refunds_supported"`
+	ID               string               `json:"id" format:"uuid"`
+	ReceiptNumber    string               `json:"receipt_number"`
+	CustomerID       *string              `json:"customer_id,omitempty" format:"uuid"`
+	CustomerName     string               `json:"customer_name"`
+	OrderedAt        time.Time            `json:"ordered_at" format:"date-time"`
+	OrderType        OrderListTypeData    `json:"order_type"`
+	RestaurantTable  *RestaurantTableData `json:"restaurant_table,omitempty"`
+	TotalQuantity    int                  `json:"total_quantity" minimum:"1"`
+	TotalAmount      int64                `json:"total_amount" minimum:"0"`
+	Status           string               `json:"status" enum:"paid,partially_refunded,refunded,cancelled"`
 }
 
 // GenderData adalah gender opsional pelanggan.

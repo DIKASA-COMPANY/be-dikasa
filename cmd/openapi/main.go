@@ -14,9 +14,12 @@ import (
 	"be-dikasa/internal/cash"
 	"be-dikasa/internal/catalog"
 	"be-dikasa/internal/payment"
+	"be-dikasa/internal/refund"
 	"be-dikasa/internal/registration"
+	"be-dikasa/internal/reports"
 	"be-dikasa/internal/reservation"
 	"be-dikasa/internal/sales"
+	"be-dikasa/internal/savedorder"
 	"be-dikasa/internal/server"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
@@ -136,9 +139,16 @@ func main() {
 
 	userService := user.NewService(schemaUserRepository{})
 	router := server.NewRouter(server.Dependencies{
+		StockHandler:        catalog.NewStockHandler(nil),
+		ExportHandler:       catalog.NewExportHandler(nil),
 		AuthHandler:         auth.NewHandler(schemaSignInProvider{}, sharedvalidator.New()),
 		CashHandler:         cash.NewHandler(schemaCashProvider{}, sharedvalidator.New()),
+		ReportsHandler:      reports.NewHandler(nil),
+		MovementHandler:     cash.NewMovementHandler(nil),
+		CashClosingHandler:  cash.NewReconciliationHandler(nil),
 		CatalogHandler:      catalog.NewHandler(schemaCatalogProvider{}, sharedvalidator.New()),
+		RefundHandler:       refund.NewHandler(nil),
+		SavedOrderHandler:   savedorder.NewHandler(nil),
 		PaymentHandler:      payment.NewHandler(schemaPaymentProvider{}),
 		RegistrationHandler: registration.NewHandler(schemaRegistrationProvider{}, sharedvalidator.New()),
 		ReservationHandler:  reservation.NewHandler(nil, sharedvalidator.New()),

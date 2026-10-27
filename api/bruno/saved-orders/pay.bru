@@ -1,0 +1,53 @@
+meta {
+  name: Pay Saved Order Once
+  type: http
+  seq: 66
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "saved_order_id": "{{savedOrderId}}",
+  "saved_order_revision": {{savedOrderRevision}},
+  "order_type_id": "{{orderTypeId}}",
+  "payment_method": "cash",
+  "subtotal": {{savedUnitPrice}},
+  "discount_amount": 0,
+  "tax_percentage": 10,
+  "tax_amount": {{savedTaxAmount}},
+  "total_amount": {{savedTotal}},
+  "paid_amount": {{savedTotal}},
+  "change_amount": 0,
+  "rounding_amount": 0,
+  "tip_amount": 0,
+  "items": [
+    {
+      "product_id": "{{productId}}",
+      "product_name": "{{savedProductName}}",
+      "unit_price": {{savedUnitPrice}},
+      "quantity": 1,
+      "notes": "Less spicy",
+      "line_total": {{savedUnitPrice}}
+    }
+  ]
+}
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.status: eq paid
+}
+
+docs {
+  Run before Delete, after opening cash. Example tax10%; adapt tax/total to your outlet.
+  Second payment returns409 PESANAN_SUDAH_DIBAYAR; fetch detail for the receipt link.
+}

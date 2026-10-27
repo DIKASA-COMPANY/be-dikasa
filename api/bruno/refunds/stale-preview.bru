@@ -1,0 +1,40 @@
+meta {
+  name: Reject Stale Refund Revision
+  type: http
+  seq: 78
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/transactions/{{refundTransactionId}}/refunds/preview
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "mode": "items",
+  "method": "cash",
+  "reason": "Unopened item returned",
+  "expected_refund_revision": 0,
+  "items": [
+    {
+      "transaction_item_id": "{{refundItemId}}",
+      "quantity": 1,
+      "restock_quantity": 0
+    }
+  ]
+}
+}
+
+assert {
+  res.status: eq 409
+  res.body.error.code: eq REFUND_REVISI_BERUBAH
+}
+
+docs {
+  Run after a successful refund advanced revision beyond0. This is a deliberate stale-selection error example.
+}

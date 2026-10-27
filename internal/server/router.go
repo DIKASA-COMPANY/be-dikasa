@@ -17,9 +17,12 @@ import (
 	"be-dikasa/internal/cash"
 	"be-dikasa/internal/catalog"
 	"be-dikasa/internal/payment"
+	"be-dikasa/internal/refund"
 	"be-dikasa/internal/registration"
+	"be-dikasa/internal/reports"
 	"be-dikasa/internal/reservation"
 	"be-dikasa/internal/sales"
+	"be-dikasa/internal/savedorder"
 	sharederrors "be-dikasa/internal/shared/errors"
 	sharedresponse "be-dikasa/internal/shared/response"
 	"be-dikasa/internal/user"
@@ -29,18 +32,29 @@ const apiPrefix = "/dikasa/v1"
 
 // Dependencies berisi handler feature dan layanan token yang dibutuhkan router.
 type Dependencies struct {
-	AuthHandler         *auth.Handler
-	CashHandler         *cash.Handler
-	CatalogHandler      *catalog.Handler
-	PaymentHandler      *payment.Handler
-	RegistrationHandler *registration.Handler
-	ReservationHandler  *reservation.Handler
-	SalesHandler        *sales.Handler
-	UserHandler         *user.Handler
-	TokenVerifier       TokenVerifier
+	ReportsHandler       *reports.Handler
+	RefundHandler        *refund.Handler
+	SavedOrderHandler    *savedorder.Handler
+	StockHandler         *catalog.StockHandler
+	ExportHandler        *catalog.ExportHandler
+	ProductImages        http.Handler
+	AvatarImages         http.Handler
+	CORSOrigins          []string
+	RegistrationDisabled bool
+	AuthHandler          *auth.Handler
+	CashHandler          *cash.Handler
+	CashClosingHandler   *cash.ReconciliationHandler
+	MovementHandler      *cash.MovementHandler
+	CatalogHandler       *catalog.Handler
+	PaymentHandler       *payment.Handler
+	RegistrationHandler  *registration.Handler
+	ReservationHandler   *reservation.Handler
+	SalesHandler         *sales.Handler
+	UserHandler          *user.Handler
+	TokenVerifier        TokenVerifier
 }
 
-// NewRouter membuat Gin engine, memasang Firebase bearer auth, dan mendaftarkan API Huma.
+// NewRouter registers Huma operations with configured CORS, registration and Bearer authentication.
 func NewRouter(dependencies Dependencies) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	configureHumaErrors()
@@ -51,7 +65,42 @@ func NewRouter(dependencies Dependencies) *gin.Engine {
 		sharedresponse.WriteError(c.Writer, sharederrors.Standard(http.StatusInternalServerError, nil))
 		c.Abort()
 	}))
-	router.Use(AuthMiddleware(dependencies.TokenVerifier, isPublicPath))
+	router.Use(CORS(dependencies.CORSOrigins))
+	// Fail before invoking registration handlers, so no inactive accounts or OTPs are stored.
+	if dependencies.RegistrationDisabled {
+		router.Use(func(c *gin.Context) {
+			if c.Request.URL.Path == apiPrefix+"/register" || strings.HasPrefix(c.Request.URL.Path, apiPrefix+"/register/otp/") {
+				sharedresponse.WriteError(c.Writer, sharederrors.New(http.StatusServiceUnavailable, "REGISTRASI_DINONAKTIFKAN", "Registrasi email belum tersedia. Gunakan akun pengembangan lokal.", nil))
+				c.Abort()
+				return
+			}
+			c.Next()
+		})
+	}
+	router.Use(AuthMiddleware(dependencies.TokenVerifier, func(path string) bool {
+		return isPublicPath(path) || (dependencies.AvatarImages != nil && strings.HasPrefix(path, apiPrefix+"/avatar-images/")) || (dependencies.ProductImages != nil && strings.HasPrefix(path, apiPrefix+"/product-images/"))
+	}))
+	// Bound multipart parsing before it can allocate memory or spill large uploads to disk.
+	router.Use(func(c *gin.Context) {
+		if (c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPatch) && ((strings.HasPrefix(c.Request.URL.Path, apiPrefix+"/cash-sessions/") && strings.HasSuffix(c.Request.URL.Path, "/movements")) || c.Request.URL.Path == apiPrefix+"/users/me" || c.Request.URL.Path == apiPrefix+"/products" || strings.HasPrefix(c.Request.URL.Path, apiPrefix+"/products/")) {
+			const maxProductBody = int64(4 * 1024 * 1024)
+			if c.Request.ContentLength > maxProductBody {
+				sharedresponse.WriteError(c.Writer, sharederrors.New(http.StatusRequestEntityTooLarge, "PERMINTAAN_TERLALU_BESAR", "Ukuran permintaan maksimal 4 MiB, termasuk gambar maksimal 3 MiB.", nil))
+				c.Abort()
+				return
+			}
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxProductBody)
+		}
+		c.Next()
+	})
+	if dependencies.AvatarImages != nil {
+		router.GET(apiPrefix+"/avatar-images/:filename", gin.WrapH(dependencies.AvatarImages))
+		router.HEAD(apiPrefix+"/avatar-images/:filename", gin.WrapH(dependencies.AvatarImages))
+	}
+	if dependencies.ProductImages != nil {
+		router.GET(apiPrefix+"/product-images/:filename", gin.WrapH(dependencies.ProductImages))
+		router.HEAD(apiPrefix+"/product-images/:filename", gin.WrapH(dependencies.ProductImages))
+	}
 	router.NoRoute(func(c *gin.Context) {
 		sharedresponse.WriteError(c.Writer, sharederrors.Standard(http.StatusNotFound, nil))
 	})
@@ -70,16 +119,53 @@ func NewRouter(dependencies Dependencies) *gin.Engine {
 	configuration.Security = []map[string][]string{{"firebaseBearer": {}}}
 	configuration.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
 		"firebaseBearer": {
-			Type: "http", Scheme: "bearer", BearerFormat: "Firebase ID token",
-			Description: "Gunakan access_token Firebase dari endpoint /login.",
+			Type: "http", Scheme: "bearer", BearerFormat: "JWT",
+			Description: "Gunakan access_token dari /login: Firebase ID token atau local JWT sesuai AUTH_MODE.",
 		},
 	}
 	configuration.RejectUnknownQueryParameters = true
 
 	group := router.Group(apiPrefix)
 	api := humagin.NewWithGroup(router, group, configuration)
+	if api.OpenAPI().Paths == nil {
+		api.OpenAPI().Paths = map[string]*huma.PathItem{}
+	}
+	api.OpenAPI().Paths["/product-images/{filename}"] = &huma.PathItem{Get: &huma.Operation{OperationID: "get-product-image", Summary: "Gambar produk lokal publik dengan nama acak", Description: "Hanya PNG/JPEG dengan nama yang dibuat server. Tidak ada directory listing. Aktif ketika IMAGE_STORAGE_MODE=local.", Tags: []string{"Katalog"}, Security: []map[string][]string{{}}, Parameters: []*huma.Param{{Name: "filename", In: "path", Required: true, Schema: &huma.Schema{Type: "string"}}}, Responses: map[string]*huma.Response{"200": {Description: "Gambar produk", Content: map[string]*huma.MediaType{"image/png": {Schema: &huma.Schema{Type: "string", Format: "binary"}}, "image/jpeg": {Schema: &huma.Schema{Type: "string", Format: "binary"}}}}, "404": {Description: "Gambar tidak ditemukan"}}}}
+
+	avatarPath := *api.OpenAPI().Paths["/product-images/{filename}"]
+	avatarGet := *avatarPath.Get
+	avatarGet.OperationID = "get-avatar-image"
+	avatarGet.Summary = "Foto profil lokal publik dengan nama acak"
+	avatarPath.Get = &avatarGet
+	avatarHead := avatarGet
+	avatarHead.OperationID = "head-avatar-image"
+	avatarHead.Responses = map[string]*huma.Response{"200": {Description: "Metadata foto profil lokal"}, "404": {Description: "Foto tidak ditemukan"}}
+	avatarPath.Head = &avatarHead
+	api.OpenAPI().Paths["/avatar-images/{filename}"] = &avatarPath
+
+	if dependencies.StockHandler != nil {
+		catalog.RegisterStockRoutes(api, dependencies.StockHandler)
+	}
+	if dependencies.ExportHandler != nil {
+		catalog.RegisterExportRoutes(api, dependencies.ExportHandler)
+	}
+	if dependencies.SavedOrderHandler != nil {
+		savedorder.RegisterRoutes(api, dependencies.SavedOrderHandler)
+	}
+	if dependencies.RefundHandler != nil {
+		refund.RegisterRoutes(api, dependencies.RefundHandler)
+	}
+	if dependencies.ReportsHandler != nil {
+		reports.RegisterRoutes(api, dependencies.ReportsHandler)
+	}
 	auth.RegisterRoutes(api, dependencies.AuthHandler)
 	cash.RegisterRoutes(api, dependencies.CashHandler)
+	if dependencies.MovementHandler != nil {
+		cash.RegisterMovementRoutes(api, dependencies.MovementHandler)
+	}
+	if dependencies.CashClosingHandler != nil {
+		cash.RegisterReconciliationRoutes(api, dependencies.CashClosingHandler)
+	}
 	if dependencies.CatalogHandler != nil {
 		catalog.RegisterRoutes(api, dependencies.CatalogHandler)
 	}
@@ -105,7 +191,7 @@ func registerSystemRoutes(api huma.API) {
 		Method:      http.MethodGet,
 		Path:        "/health",
 		Summary:     "Memeriksa kondisi API",
-		Description: "Memastikan API berjalan dan Firebase ID token berhasil diverifikasi.",
+		Description: "Memastikan API berjalan dan Bearer token dari auth provider berhasil diverifikasi.",
 		Tags:        []string{"Sistem"},
 		Errors:      []int{http.StatusUnauthorized, http.StatusInternalServerError},
 	}, health)

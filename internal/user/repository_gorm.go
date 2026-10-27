@@ -54,7 +54,16 @@ func (repository *GORMRepository) UpdatePasswordHash(ctx context.Context, userID
 }
 
 func normalizeUserWriteError(err error) error {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return ErrConflict
+	}
+	if errors.Is(err, gorm.ErrForeignKeyViolated) {
+		return ErrInvalidProfile
+	}
 	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) && postgresError.Code == "23503" {
+		return ErrInvalidProfile
+	}
 	if errors.As(err, &postgresError) && postgresError.Code == "23505" {
 		return ErrConflict
 	}
@@ -85,7 +94,7 @@ func (repository *GORMRepository) FindByIdentifier(ctx context.Context, identifi
 // FindByID mencari user berdasarkan UUID PostgreSQL.
 func (repository *GORMRepository) FindByID(ctx context.Context, id string) (*User, error) {
 	var account User
-	err := repository.db.WithContext(ctx).First(&account, "id = ?", id).Error
+	err := repository.db.WithContext(ctx).Preload("Role").Preload("Outlet").Preload("Gender").First(&account, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrNotFound

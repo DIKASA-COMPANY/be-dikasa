@@ -6,6 +6,8 @@ import "time"
 const (
 	// StatusPaid menandakan order sudah dibayar.
 	StatusPaid = "paid"
+	// StatusPartiallyRefunded preserves sales with some units already refunded.
+	StatusPartiallyRefunded = "partially_refunded"
 	// StatusRefunded menandakan pembayaran order sudah dikembalikan.
 	StatusRefunded = "refunded"
 	// StatusCancelled menandakan order dibatalkan.
@@ -14,6 +16,10 @@ const (
 
 // Order adalah proyeksi transaksi untuk layar daftar order.
 type Order struct {
+	RefundedAmount      *int64
+	NetAfterRefund      *int64
+	RefundRevision      int64
+	RefundsSupported    bool
 	ID                  string
 	ReceiptNumber       string
 	CustomerID          *string

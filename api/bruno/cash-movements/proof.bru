@@ -1,0 +1,19 @@
+meta {
+  name: Private cash evidence
+  type: http
+  seq: 75
+}
+get {
+  url: {{baseUrl}}/dikasa/v1/cash-sessions/{{cashSessionId}}/movements/{{cashMovementId}}/proof
+  body: none
+  auth: bearer
+}
+auth:bearer {
+  token: {{accessToken}}
+}
+assert {
+  res.status: eq 200
+}
+docs {
+  Use disposable test accounts for writes. Keep the exact request UUID/body/photo on a lost reply; never retarget another session or retry with a fresh UUID. Proof is private and optional.
+}

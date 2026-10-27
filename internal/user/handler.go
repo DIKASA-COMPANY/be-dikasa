@@ -37,11 +37,9 @@ func (handler *Handler) Me(ctx context.Context, _ *struct{}) (*ProfileOutput, er
 		}
 		return nil, sharederrors.Standard(http.StatusInternalServerError, nil)
 	}
-	return &ProfileOutput{Body: ProfileResponse{Data: Profile{
-		ID: account.ID, RoleID: account.RoleID, GenderID: account.GenderID, OutletID: account.OutletID,
-		Username: account.Username, PhoneNumber: account.PhoneNumber, Email: account.Email,
-		FirstName: account.FirstName, LastName: account.LastName, IsActive: account.IsActive, AvatarURL: account.AvatarURL,
-	}}}, nil
+	data := profileData(account)
+	data.CanChangePassword = handler.service.passwordChangesAllowed
+	return &ProfileOutput{Body: ProfileResponse{Data: data}}, nil
 }
 
 // UpdateProfile memperbarui field multipart profil user terautentikasi.
@@ -57,7 +55,7 @@ func (handler *Handler) UpdateProfile(ctx context.Context, input *UpdateProfileI
 			fields[key] = true
 		}
 	}
-	mutation := ProfileMutation{FirstName: form.FirstName, LastName: form.LastName, PhoneNumber: form.PhoneNumber, Email: form.Email, RemoveAvatar: form.RemoveAvatar, Fields: fields}
+	mutation := ProfileMutation{DateOfBirth: form.DateOfBirth, GenderID: form.GenderID, PersonalAddress: form.PersonalAddress, FirstName: form.FirstName, LastName: form.LastName, PhoneNumber: form.PhoneNumber, Email: form.Email, RemoveAvatar: form.RemoveAvatar, Fields: fields}
 	if form.Avatar.IsSet {
 		mutation.Avatar = &AvatarUpload{Reader: form.Avatar.File, Size: form.Avatar.Size, ContentType: form.Avatar.ContentType, Filename: form.Avatar.Filename}
 	}
@@ -65,7 +63,9 @@ func (handler *Handler) UpdateProfile(ctx context.Context, input *UpdateProfileI
 	if err != nil {
 		return nil, settingsStatusError(err)
 	}
-	return &ProfileOutput{Body: ProfileResponse{Data: profileData(account)}}, nil
+	data := profileData(account)
+	data.CanChangePassword = handler.service.passwordChangesAllowed
+	return &ProfileOutput{Body: ProfileResponse{Data: data}}, nil
 }
 
 // ChangePIN memvalidasi konfirmasi dan mengganti PIN user terautentikasi.
@@ -99,13 +99,27 @@ func (handler *Handler) ChangePassword(ctx context.Context, input *ChangePasswor
 }
 
 func profileData(account *User) Profile {
-	return Profile{ID: account.ID, RoleID: account.RoleID, GenderID: account.GenderID, OutletID: account.OutletID, Username: account.Username,
+	p := Profile{Role: account.Role.Name, PersonalAddress: account.PersonalAddress, HasPIN: account.PINHash != nil, ID: account.ID, RoleID: account.RoleID, GenderID: account.GenderID, OutletID: account.OutletID, Username: account.Username,
 		PhoneNumber: account.PhoneNumber, Email: account.Email, FirstName: account.FirstName, LastName: account.LastName, IsActive: account.IsActive, AvatarURL: account.AvatarURL}
+	if account.Outlet != nil {
+		p.OutletName = account.Outlet.Name
+	}
+	if account.Gender != nil {
+		v := account.Gender.Name
+		p.GenderName = &v
+	}
+	if account.DateOfBirth != nil {
+		v := account.DateOfBirth.Format("2006-01-02")
+		p.DateOfBirth = &v
+	}
+	return p
 }
 
 // settingsStatusError mencegah detail hash, database, dan storage bocor ke client.
 func settingsStatusError(err error) *sharederrors.StatusError {
 	switch {
+	case errors.Is(err, ErrPasswordChangesDisabled):
+		return sharederrors.New(503, "PASSWORD_PROVIDER_TIDAK_DIDUKUNG", "Perubahan password tidak tersedia untuk penyedia autentikasi ini.", nil)
 	case errors.Is(err, ErrNotFound):
 		return sharederrors.Standard(404, nil)
 	case errors.Is(err, ErrConflict):
@@ -129,4 +143,34 @@ func settingsStatusError(err error) *sharederrors.StatusError {
 	default:
 		return sharederrors.Standard(500, nil)
 	}
+}
+
+// GenderChoice exposes only reference identifiers and labels.
+type GenderChoice struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// GenderOutput wraps gender reference options.
+type GenderOutput struct {
+	Body struct {
+		Data []GenderChoice `json:"data"`
+	}
+}
+
+// Genders returns reference choices for the authenticated account profile.
+func (h *Handler) Genders(ctx context.Context, _ *struct{}) (*GenderOutput, error) {
+	if _, ok := AuthenticatedUserIDFromContext(ctx); !ok {
+		return nil, sharederrors.Standard(401, nil)
+	}
+	choices, e := h.service.ListGenders(ctx)
+	if e != nil {
+		return nil, settingsStatusError(e)
+	}
+	out := &GenderOutput{}
+	out.Body.Data = []GenderChoice{}
+	for _, g := range choices {
+		out.Body.Data = append(out.Body.Data, GenderChoice{g.ID, g.Name})
+	}
+	return out, nil
 }

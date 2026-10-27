@@ -1,20 +1,25 @@
 package user
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type authenticatedUserIDKey struct{}
 
 // Service menyediakan use case user tanpa bergantung pada transport HTTP.
 type Service struct {
-	repository Repository
-	settings   SettingsRepository
-	hasher     CredentialHasher
-	avatars    AvatarStore
+	repository             Repository
+	settings               SettingsRepository
+	hasher                 CredentialHasher
+	avatars                AvatarStore
+	passwordChangesAllowed bool
+	now                    func() time.Time
 }
 
 // NewService membuat user service dengan repository yang diberikan.
 func NewService(repository Repository, options ...ServiceOption) *Service {
-	service := &Service{repository: repository, hasher: bcryptCredentialHasher{}, avatars: NewDisabledAvatarStore()}
+	service := &Service{repository: repository, hasher: bcryptCredentialHasher{}, avatars: NewDisabledAvatarStore(), passwordChangesAllowed: true, now: time.Now}
 	service.settings, _ = repository.(SettingsRepository)
 	for _, option := range options {
 		option(service)

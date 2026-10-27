@@ -69,6 +69,7 @@ func (handler *Handler) ListCustomers(ctx context.Context, input *ListCustomersI
 
 func orderData(value Order) OrderData {
 	data := OrderData{
+		RefundedAmount: value.RefundedAmount, NetAfterRefund: value.NetAfterRefund, RefundRevision: value.RefundRevision, RefundsSupported: value.RefundsSupported,
 		ID: value.ID, ReceiptNumber: value.ReceiptNumber, CustomerID: value.CustomerID, CustomerName: value.CustomerName,
 		OrderedAt: value.OrderedAt, OrderType: OrderListTypeData{ID: value.OrderTypeID, Code: value.OrderTypeCode, Name: value.OrderTypeName},
 		TotalQuantity: value.TotalQuantity, TotalAmount: value.TotalAmount, Status: value.Status,

@@ -48,3 +48,9 @@ assert {
   res.body.data.items: isArray
 }
 
+
+docs {
+  Product and variation IDs, availability and unit prices are now checked against the current outlet catalog.
+  Tracked product quantities are aggregated across all item variations and deducted atomically.
+  STOK_TIDAK_CUKUP and KATALOG_BERUBAH are HTTP 409 conflicts; review the cart instead of resubmitting unchanged.
+}

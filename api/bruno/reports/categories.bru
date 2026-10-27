@@ -1,0 +1,21 @@
+meta {
+ name: Sales report categories
+ type: http
+ seq: 93
+}
+get {
+ url: {{baseUrl}}/dikasa/v1/reports/categories?start_date={{reportStartDate}}&end_date={{reportEndDate}}
+ body: none
+ auth: bearer
+}
+auth:bearer {
+ token: {{accessToken}}
+}
+assert {
+ res.status: eq 200
+ res.body.data.kind: eq categories
+ res.body.meta.timezone: eq Asia/Jakarta
+}
+docs {
+ Active cashier/manager, current outlet only. Dates inclusive WIB. Refunds are deducted on their own date. Product/category query and sort filters apply before pagination and totals.
+}

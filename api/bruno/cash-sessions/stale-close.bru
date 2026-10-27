@@ -1,0 +1,33 @@
+meta {
+  name: Reject Stale Cash Preview
+  type: http
+  seq: 85
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/cash-sessions/{{closeSessionId}}/close
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "counted_cash": {{closeCountedCash}},
+  "reason": "Physical count verified",
+  "request_id": "{{closeStaleRequestId}}",
+  "preview_hash": "{{closePreviewHash}}"
+}
+}
+
+assert {
+  res.status: eq 409
+  res.body.error.code: eq SESI_KAS_PRATINJAU_BERUBAH
+}
+
+docs {
+  On an OPEN marked test session, preview first, then add a sale/refund before this command. Use the old hash and this fresh UUID. Expected stale409. Running after successful close instead returns SESI_KAS_SUDAH_DITUTUP.
+}

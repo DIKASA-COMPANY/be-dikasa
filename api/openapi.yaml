@@ -1,5 +1,54 @@
 components:
   schemas:
+    ActivityData:
+      additionalProperties: false
+      properties:
+        capabilities:
+          $ref: "#/components/schemas/MovementCapabilities"
+        events:
+          items:
+            $ref: "#/components/schemas/CashActivityEvent"
+          type:
+            - array
+            - "null"
+        session:
+          $ref: "#/components/schemas/SessionRecord"
+        totals:
+          $ref: "#/components/schemas/CashFlowTotals"
+      required:
+        - session
+        - totals
+        - capabilities
+        - events
+      type: object
+    ActivityMeta:
+      additionalProperties: false
+      properties:
+        page:
+          format: int64
+          type: integer
+        page_size:
+          format: int64
+          type: integer
+        total:
+          format: int64
+          type: integer
+      required:
+        - page
+        - page_size
+        - total
+      type: object
+    ActivityPage:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/ActivityData"
+        meta:
+          $ref: "#/components/schemas/ActivityMeta"
+      required:
+        - data
+        - meta
+      type: object
     Body:
       additionalProperties: false
       properties:
@@ -14,6 +63,128 @@ components:
       required:
         - code
         - message
+      type: object
+    CashActivityEvent:
+      additionalProperties: false
+      properties:
+        amount:
+          format: int64
+          type: integer
+        created_by:
+          type: string
+        created_by_name:
+          type: string
+        direction:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+        occurred_at:
+          format: date-time
+          type: string
+        reason:
+          type: string
+        reverses_id:
+          type:
+            - string
+            - "null"
+        source_id:
+          type: string
+      required:
+        - id
+        - source_id
+        - kind
+        - direction
+        - amount
+        - name
+        - reason
+        - occurred_at
+        - created_by
+        - created_by_name
+        - reverses_id
+      type: object
+    CashCloseOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/ClosedReconciliation"
+      required:
+        - data
+      type: object
+    CashDetailOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/SessionRecord"
+      required:
+        - data
+      type: object
+    CashFlowTotals:
+      additionalProperties: false
+      properties:
+        cash_in:
+          format: int64
+          type: integer
+        cash_out:
+          format: int64
+          type: integer
+        cash_refunds:
+          format: int64
+          type: integer
+        cash_sales:
+          format: int64
+          type: integer
+        expected_cash:
+          format: int64
+          type: integer
+        movement_count:
+          format: int64
+          type: integer
+        opening:
+          format: int64
+          type: integer
+        total_in:
+          format: int64
+          type: integer
+        total_out:
+          format: int64
+          type: integer
+      required:
+        - opening
+        - cash_sales
+        - cash_refunds
+        - cash_in
+        - cash_out
+        - total_in
+        - total_out
+        - expected_cash
+        - movement_count
+      type: object
+    CashPreviewOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/ClosePreview"
+      required:
+        - data
+      type: object
+    CashSessionsOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/SessionRecord"
+          type:
+            - array
+            - "null"
+        meta:
+          $ref: "#/components/schemas/MetaStruct"
+      required:
+        - data
+        - meta
       type: object
     CategoriesOutputBody:
       additionalProperties: false
@@ -95,21 +266,170 @@ components:
       additionalProperties: false
       properties:
         current_password:
+          description: Panjang 8–72 byte UTF-8; divalidasi service.
           maxLength: 72
-          minLength: 8
+          minLength: 1
           type: string
         new_password:
+          description: Panjang 8–72 byte UTF-8; divalidasi service.
           maxLength: 72
-          minLength: 8
+          minLength: 1
           type: string
         new_password_confirmation:
           maxLength: 72
-          minLength: 8
+          minLength: 1
           type: string
       required:
         - current_password
         - new_password
         - new_password_confirmation
+      type: object
+    CloseCommand:
+      additionalProperties: false
+      properties:
+        counted_cash:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        preview_hash:
+          maxLength: 64
+          minLength: 64
+          type: string
+        reason:
+          maxLength: 500
+          type: string
+        request_id:
+          format: uuid
+          type: string
+      required:
+        - request_id
+        - preview_hash
+        - counted_cash
+        - reason
+      type: object
+    ClosePreview:
+      additionalProperties: false
+      properties:
+        counted_cash:
+          format: int64
+          type: integer
+        difference:
+          format: int64
+          type: integer
+        preview_hash:
+          type: string
+        reason:
+          type: string
+        summary:
+          $ref: "#/components/schemas/ReconciliationSummary"
+      required:
+        - summary
+        - counted_cash
+        - difference
+        - reason
+        - preview_hash
+      type: object
+    CloseSelection:
+      additionalProperties: false
+      properties:
+        counted_cash:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        reason:
+          maxLength: 500
+          type: string
+      required:
+        - counted_cash
+        - reason
+      type: object
+    ClosedReconciliation:
+      additionalProperties: false
+      properties:
+        close_request_id:
+          type: string
+        closed_at:
+          format: date-time
+          type: string
+        closed_by:
+          type: string
+        closed_by_name:
+          type: string
+        counted_cash:
+          format: int64
+          type: integer
+        difference:
+          format: int64
+          type: integer
+        preview_hash:
+          type: string
+        reason:
+          type: string
+        session_id:
+          type: string
+        summary:
+          $ref: "#/components/schemas/ReconciliationSummary"
+      required:
+        - session_id
+        - closed_by
+        - closed_by_name
+        - closed_at
+        - close_request_id
+        - summary
+        - counted_cash
+        - difference
+        - reason
+        - preview_hash
+      type: object
+    Command:
+      additionalProperties: false
+      properties:
+        expected_refund_revision:
+          format: int64
+          minimum: 0
+          type: integer
+        items:
+          items:
+            $ref: "#/components/schemas/SelectedItem"
+          maxItems: 100
+          minItems: 1
+          type:
+            - array
+            - "null"
+        method:
+          enum:
+            - cash
+            - wallet
+            - debit_card
+            - qris
+            - transfer
+          type: string
+        mode:
+          enum:
+            - full
+            - items
+          type: string
+        preview_hash:
+          maxLength: 64
+          minLength: 64
+          type: string
+        reason:
+          maxLength: 500
+          minLength: 1
+          type: string
+        request_id:
+          format: uuid
+          type: string
+      required:
+        - request_id
+        - preview_hash
+        - mode
+        - method
+        - reason
+        - expected_refund_revision
+        - items
       type: object
     ConfirmOTPRequest:
       additionalProperties: false
@@ -200,6 +520,49 @@ components:
         - data
         - meta
       type: object
+    DailyPoint:
+      additionalProperties: false
+      properties:
+        charged_sales:
+          format: int64
+          type: integer
+        date:
+          type: string
+        net_sales:
+          format: int64
+          type: integer
+        refund_amount:
+          format: int64
+          type: integer
+        sale_count:
+          format: int64
+          type: integer
+      required:
+        - date
+        - sale_count
+        - charged_sales
+        - refund_amount
+        - net_sales
+      type: object
+    DetailOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/ReceiptSnapshot"
+      required:
+        - data
+      type: object
+    GenderChoice:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - name
+      type: object
     GenderData:
       additionalProperties: false
       properties:
@@ -211,6 +574,127 @@ components:
       required:
         - id
         - name
+      type: object
+    GenderOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/GenderChoice"
+          type:
+            - array
+            - "null"
+      required:
+        - data
+      type: object
+    GroupRow:
+      additionalProperties: false
+      properties:
+        average_transaction:
+          format: int64
+          type:
+            - integer
+            - "null"
+        category_id:
+          type: string
+        category_name:
+          type: string
+        charged_sales:
+          format: int64
+          type: integer
+        discount_amount:
+          format: int64
+          type: integer
+        excluded_receipts:
+          format: int64
+          type: integer
+        gross_sales:
+          format: int64
+          type: integer
+        key:
+          type: string
+        name:
+          type: string
+        net_quantity:
+          format: int64
+          type: integer
+        net_sales:
+          format: int64
+          type: integer
+        net_tax:
+          format: int64
+          type: integer
+        product_id:
+          type: string
+        refund_amount:
+          format: int64
+          type: integer
+        refund_count:
+          format: int64
+          type: integer
+        refund_net:
+          format: int64
+          type: integer
+        refund_tax:
+          format: int64
+          type: integer
+        returned_quantity:
+          format: int64
+          type: integer
+        sale_count:
+          format: int64
+          type: integer
+        sale_tax:
+          format: int64
+          type: integer
+        sales_after_discount:
+          format: int64
+          type: integer
+        sold_quantity:
+          format: int64
+          type: integer
+        unit_price_max:
+          format: int64
+          type:
+            - integer
+            - "null"
+        unit_price_min:
+          format: int64
+          type:
+            - integer
+            - "null"
+        unknown_category_quantity:
+          format: int64
+          type: integer
+        value_after_refunds:
+          format: int64
+          type: integer
+        variant_id:
+          type: string
+      required:
+        - key
+        - name
+        - unit_price_min
+        - unit_price_max
+        - gross_sales
+        - discount_amount
+        - sales_after_discount
+        - charged_sales
+        - refund_net
+        - refund_tax
+        - refund_amount
+        - net_sales
+        - sale_tax
+        - net_tax
+        - value_after_refunds
+        - sale_count
+        - refund_count
+        - sold_quantity
+        - returned_quantity
+        - net_quantity
+        - average_transaction
+        - excluded_receipts
+        - unknown_category_quantity
       type: object
     HealthOutputBody:
       additionalProperties: false
@@ -226,6 +710,73 @@ components:
       required:
         - status
         - service
+      type: object
+    HistoryOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/Refund"
+          type:
+            - array
+            - "null"
+        meta:
+          $ref: "#/components/schemas/MetaStruct"
+      required:
+        - data
+        - meta
+      type: object
+    Item:
+      additionalProperties: false
+      properties:
+        notes:
+          maxLength: 500
+          type: string
+        position:
+          format: int64
+          type: integer
+        product_id:
+          format: uuid
+          type: string
+        product_name:
+          maxLength: 150
+          type: string
+        product_variant_id:
+          format: uuid
+          type: string
+        quantity:
+          format: int64
+          maximum: 1000
+          minimum: 1
+          type: integer
+        unit_price:
+          format: int64
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        variant_name:
+          maxLength: 100
+          type: string
+      required:
+        - product_id
+        - product_name
+        - unit_price
+        - quantity
+      type: object
+    ListOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/Order"
+          type:
+            - array
+            - "null"
+        meta:
+          $ref: "#/components/schemas/MetaStruct"
+      required:
+        - data
+        - meta
       type: object
     LoginRequest:
       additionalProperties: false
@@ -258,7 +809,7 @@ components:
       additionalProperties: false
       properties:
         access_token:
-          description: Firebase ID token untuk Authorization Bearer
+          description: "Bearer token: Firebase ID token atau local JWT sesuai AUTH_MODE"
           type: string
         expires_in:
           examples:
@@ -266,10 +817,10 @@ components:
           format: int64
           type: integer
         firebase_uid:
-          description: Sama dengan UUID user PostgreSQL
+          description: UUID user PostgreSQL pada kedua mode; nama field dipertahankan untuk kompatibilitas
           type: string
         refresh_token:
-          description: Firebase refresh token untuk memperbarui sesi
+          description: Firebase refresh token; kosong pada local mode (login ulang setelah satu jam)
           type: string
         token_type:
           enum:
@@ -283,6 +834,42 @@ components:
         - token_type
         - expires_in
         - firebase_uid
+      type: object
+    Meta:
+      additionalProperties: false
+      properties:
+        end_date:
+          type: string
+        generated_at:
+          format: date-time
+          type: string
+        page:
+          format: int64
+          type: integer
+        page_size:
+          format: int64
+          type: integer
+        query:
+          type: string
+        sort:
+          type: string
+        start_date:
+          type: string
+        timezone:
+          type: string
+        total:
+          format: int64
+          type: integer
+      required:
+        - query
+        - sort
+        - start_date
+        - end_date
+        - timezone
+        - generated_at
+        - page
+        - page_size
+        - total
       type: object
     MetaStruct:
       additionalProperties: false
@@ -300,6 +887,179 @@ components:
         - page
         - page_size
         - total
+      type: object
+    MethodRow:
+      additionalProperties: false
+      properties:
+        method:
+          type: string
+        net_amount:
+          format: int64
+          type: integer
+        refund_amount:
+          format: int64
+          type: integer
+        refund_count:
+          format: int64
+          type: integer
+        sale_count:
+          format: int64
+          type: integer
+        sales_amount:
+          format: int64
+          type: integer
+      required:
+        - method
+        - sale_count
+        - sales_amount
+        - refund_count
+        - refund_amount
+        - net_amount
+      type: object
+    MethodSummary:
+      additionalProperties: false
+      properties:
+        method:
+          type: string
+        refund_count:
+          format: int64
+          type: integer
+        refunds_amount:
+          format: int64
+          type: integer
+        sale_count:
+          format: int64
+          type: integer
+        sales_amount:
+          format: int64
+          type: integer
+      required:
+        - method
+        - sale_count
+        - sales_amount
+        - refund_count
+        - refunds_amount
+      type: object
+    MovementCapabilities:
+      additionalProperties: false
+      properties:
+        can_create:
+          type: boolean
+        can_upload_proof:
+          type: boolean
+      required:
+        - can_create
+        - can_upload_proof
+      type: object
+    MovementDetail:
+      additionalProperties: false
+      properties:
+        can_reverse:
+          type: boolean
+        movement:
+          $ref: "#/components/schemas/MovementRecord"
+        reversed_by_id:
+          type:
+            - string
+            - "null"
+      required:
+        - movement
+        - can_reverse
+        - reversed_by_id
+      type: object
+    MovementDetailOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/MovementDetail"
+      required:
+        - data
+      type: object
+    MovementOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/MovementRecord"
+      required:
+        - data
+      type: object
+    MovementRecord:
+      additionalProperties: false
+      properties:
+        amount:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        created_by_name:
+          type: string
+        has_proof:
+          type: boolean
+        id:
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+        outlet_id:
+          type: string
+        reason:
+          type: string
+        request_id:
+          type: string
+        reverses_id:
+          type:
+            - string
+            - "null"
+        session_id:
+          type: string
+      required:
+        - id
+        - outlet_id
+        - session_id
+        - request_id
+        - created_by
+        - created_by_name
+        - created_at
+        - kind
+        - amount
+        - name
+        - reason
+        - reverses_id
+        - has_proof
+      type: object
+    Mutation:
+      additionalProperties: false
+      properties:
+        expected_revision:
+          format: int64
+          minimum: 0
+          type: integer
+        items:
+          items:
+            $ref: "#/components/schemas/Item"
+          maxItems: 100
+          minItems: 1
+          type:
+            - array
+            - "null"
+        label:
+          maxLength: 100
+          type: string
+        order_type_id:
+          format: uuid
+          type: string
+        request_id:
+          format: uuid
+          type: string
+      required:
+        - request_id
+        - label
+        - order_type_id
+        - items
       type: object
     OTPResponse:
       additionalProperties: false
@@ -343,6 +1103,61 @@ components:
       required:
         - opening_cash
       type: object
+    Order:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        creator_name:
+          type: string
+        estimated_subtotal:
+          format: int64
+          type: integer
+        id:
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/Item"
+          type:
+            - array
+            - "null"
+        label:
+          type: string
+        order_type_id:
+          type: string
+        revision:
+          format: int64
+          type: integer
+        status:
+          type: string
+        total_quantity:
+          format: int64
+          type: integer
+        transaction_id:
+          type:
+            - string
+            - "null"
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - created_by
+        - creator_name
+        - label
+        - order_type_id
+        - revision
+        - status
+        - transaction_id
+        - created_at
+        - updated_at
+        - items
+        - estimated_subtotal
+        - total_quantity
+      type: object
     OrderData:
       additionalProperties: false
       properties:
@@ -354,6 +1169,11 @@ components:
         id:
           format: uuid
           type: string
+        net_after_refund:
+          format: int64
+          type:
+            - integer
+            - "null"
         order_type:
           $ref: "#/components/schemas/OrderListTypeData"
         ordered_at:
@@ -361,11 +1181,22 @@ components:
           type: string
         receipt_number:
           type: string
+        refund_revision:
+          format: int64
+          type: integer
+        refunded_amount:
+          format: int64
+          type:
+            - integer
+            - "null"
+        refunds_supported:
+          type: boolean
         restaurant_table:
           $ref: "#/components/schemas/RestaurantTableData"
         status:
           enum:
             - paid
+            - partially_refunded
             - refunded
             - cancelled
           type: string
@@ -378,6 +1209,10 @@ components:
           minimum: 1
           type: integer
       required:
+        - refunded_amount
+        - net_after_refund
+        - refund_revision
+        - refunds_supported
         - id
         - receipt_number
         - customer_name
@@ -481,6 +1316,14 @@ components:
         - data
         - meta
       type: object
+    OutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/Order"
+      required:
+        - data
+      type: object
     PaginationMeta:
       additionalProperties: false
       properties:
@@ -498,6 +1341,51 @@ components:
         - page_size
         - total
       type: object
+    Preview:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/RefundItem"
+          type:
+            - array
+            - "null"
+        net_amount:
+          format: int64
+          type: integer
+        preview_hash:
+          type: string
+        refund_revision:
+          format: int64
+          type: integer
+        result_status:
+          type: string
+        tax_amount:
+          format: int64
+          type: integer
+        total_amount:
+          format: int64
+          type: integer
+        transaction_id:
+          type: string
+      required:
+        - transaction_id
+        - refund_revision
+        - preview_hash
+        - net_amount
+        - tax_amount
+        - total_amount
+        - result_status
+        - items
+      type: object
+    PreviewOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/Preview"
+      required:
+        - data
+      type: object
     ProductData:
       additionalProperties: false
       properties:
@@ -509,6 +1397,12 @@ components:
           type: integer
         description:
           type: string
+        effective_stock_status:
+          enum:
+            - available
+            - low_stock
+            - out_of_stock
+          type: string
         id:
           format: uuid
           type: string
@@ -519,6 +1413,10 @@ components:
           type: boolean
         is_highlighted:
           type: boolean
+        low_stock_threshold:
+          format: int64
+          minimum: 0
+          type: integer
         name:
           type: string
         online_cost_price:
@@ -546,11 +1444,17 @@ components:
         sort_order:
           format: int64
           type: integer
+        stock_quantity:
+          format: int64
+          minimum: 0
+          type: integer
         stock_status:
           enum:
             - available
             - out_of_stock
           type: string
+        track_stock:
+          type: boolean
         variations:
           items:
             $ref: "#/components/schemas/ProductVariantData"
@@ -563,6 +1467,10 @@ components:
         - price
         - selling_price
         - stock_status
+        - track_stock
+        - stock_quantity
+        - low_stock_threshold
+        - effective_stock_status
         - description
         - is_highlighted
         - sort_order
@@ -713,12 +1621,24 @@ components:
         avatar_url:
           format: uri
           type: string
+        can_change_password:
+          type: boolean
+        date_of_birth:
+          type:
+            - string
+            - "null"
         email:
           type: string
         first_name:
           type: string
         gender_id:
           type: string
+        gender_name:
+          type:
+            - string
+            - "null"
+        has_pin:
+          type: boolean
         id:
           type: string
         is_active:
@@ -727,13 +1647,28 @@ components:
           type: string
         outlet_id:
           type: string
+        outlet_name:
+          type: string
+        personal_address:
+          type:
+            - string
+            - "null"
         phone_number:
+          type: string
+        role:
           type: string
         role_id:
           type: string
         username:
           type: string
       required:
+        - role
+        - outlet_name
+        - gender_name
+        - date_of_birth
+        - personal_address
+        - has_pin
+        - can_change_password
         - id
         - role_id
         - username
@@ -747,6 +1682,264 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/Profile"
+      required:
+        - data
+      type: object
+    ReceiptItem:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        line_total:
+          format: int64
+          type: integer
+        product_id:
+          type: string
+        product_name:
+          type: string
+        product_variant_id:
+          type: string
+        quantity:
+          format: int64
+          type: integer
+        refunded_quantity:
+          format: int64
+          type: integer
+        restock_budget:
+          format: int64
+          type: integer
+        returned_quantity:
+          format: int64
+          type: integer
+        stock_quantity:
+          format: int64
+          type: integer
+        track_stock:
+          type: boolean
+        unit_price:
+          format: int64
+          type: integer
+        variant_name:
+          type: string
+      required:
+        - id
+        - product_id
+        - product_name
+        - unit_price
+        - quantity
+        - line_total
+        - refunded_quantity
+        - returned_quantity
+        - track_stock
+        - stock_quantity
+        - restock_budget
+      type: object
+    ReceiptSnapshot:
+      additionalProperties: false
+      properties:
+        discount_amount:
+          format: int64
+          type: integer
+        id:
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/ReceiptItem"
+          type:
+            - array
+            - "null"
+        payment_method:
+          type: string
+        refund_revision:
+          format: int64
+          type: integer
+        refunded_amount:
+          format: int64
+          type: integer
+        refunds_supported:
+          type: boolean
+        status:
+          type: string
+        subtotal:
+          format: int64
+          type: integer
+        tax_amount:
+          format: int64
+          type: integer
+        total_amount:
+          format: int64
+          type: integer
+        transaction_number:
+          type: string
+      required:
+        - id
+        - transaction_number
+        - status
+        - payment_method
+        - refund_revision
+        - subtotal
+        - discount_amount
+        - tax_amount
+        - total_amount
+        - refunded_amount
+        - refunds_supported
+        - items
+      type: object
+    ReconciliationSummary:
+      additionalProperties: false
+      properties:
+        cash_in:
+          format: int64
+          type: integer
+        cash_out:
+          format: int64
+          type: integer
+        cash_refunds:
+          format: int64
+          type: integer
+        cash_sales:
+          format: int64
+          type: integer
+        expected_cash:
+          format: int64
+          type: integer
+        methods:
+          items:
+            $ref: "#/components/schemas/MethodSummary"
+          type:
+            - array
+            - "null"
+        movement_count:
+          format: int64
+          type: integer
+        opened_at:
+          format: date-time
+          type: string
+        opening_cash:
+          format: int64
+          type: integer
+        opening_user_id:
+          type: string
+        opening_user_name:
+          type: string
+        refund_count:
+          format: int64
+          type: integer
+        sale_count:
+          format: int64
+          type: integer
+        session_id:
+          type: string
+      required:
+        - session_id
+        - opening_user_id
+        - opening_user_name
+        - opened_at
+        - opening_cash
+        - cash_sales
+        - cash_refunds
+        - cash_in
+        - cash_out
+        - movement_count
+        - expected_cash
+        - sale_count
+        - refund_count
+        - methods
+      type: object
+    Refund:
+      additionalProperties: false
+      properties:
+        actor_id:
+          type: string
+        actor_name:
+          type: string
+        cash_session_id:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        id:
+          type: string
+        items:
+          items:
+            $ref: "#/components/schemas/RefundItem"
+          type:
+            - array
+            - "null"
+        method:
+          type: string
+        mode:
+          type: string
+        net_amount:
+          format: int64
+          type: integer
+        reason:
+          type: string
+        refund_number:
+          type: string
+        request_id:
+          type: string
+        tax_amount:
+          format: int64
+          type: integer
+        total_amount:
+          format: int64
+          type: integer
+        transaction_id:
+          type: string
+      required:
+        - id
+        - refund_number
+        - transaction_id
+        - actor_id
+        - actor_name
+        - cash_session_id
+        - reason
+        - method
+        - mode
+        - net_amount
+        - tax_amount
+        - total_amount
+        - created_at
+        - request_id
+        - items
+      type: object
+    RefundItem:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        net_amount:
+          format: int64
+          type: integer
+        quantity:
+          format: int64
+          type: integer
+        restock_quantity:
+          format: int64
+          type: integer
+        tax_amount:
+          format: int64
+          type: integer
+        total_amount:
+          format: int64
+          type: integer
+        transaction_item_id:
+          type: string
+      required:
+        - id
+        - transaction_item_id
+        - quantity
+        - restock_quantity
+        - net_amount
+        - tax_amount
+        - total_amount
+      type: object
+    RefundOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/Refund"
       required:
         - data
       type: object
@@ -833,6 +2026,38 @@ components:
         - password
         - password_confirmation
         - verification_email
+      type: object
+    Report:
+      additionalProperties: false
+      properties:
+        daily:
+          items:
+            $ref: "#/components/schemas/DailyPoint"
+          type:
+            - array
+            - "null"
+        kind:
+          type: string
+        methods:
+          items:
+            $ref: "#/components/schemas/MethodRow"
+          type:
+            - array
+            - "null"
+        rows:
+          items:
+            $ref: "#/components/schemas/GroupRow"
+          type:
+            - array
+            - "null"
+        totals:
+          $ref: "#/components/schemas/Totals"
+      required:
+        - kind
+        - totals
+        - daily
+        - methods
+        - rows
       type: object
     ResendOTPRequest:
       additionalProperties: false
@@ -1001,6 +2226,91 @@ components:
         - id
         - name
       type: object
+    Result:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/Report"
+        meta:
+          $ref: "#/components/schemas/Meta"
+      required:
+        - data
+        - meta
+      type: object
+    ReversalCommand:
+      additionalProperties: false
+      properties:
+        reason:
+          maxLength: 500
+          minLength: 1
+          type: string
+        request_id:
+          format: uuid
+          type: string
+      required:
+        - request_id
+        - reason
+      type: object
+    SelectedItem:
+      additionalProperties: false
+      properties:
+        quantity:
+          format: int64
+          maximum: 1000
+          minimum: 1
+          type: integer
+        restock_quantity:
+          format: int64
+          maximum: 1000
+          minimum: 0
+          type: integer
+        transaction_item_id:
+          format: uuid
+          type: string
+      required:
+        - transaction_item_id
+        - quantity
+        - restock_quantity
+      type: object
+    Selection:
+      additionalProperties: false
+      properties:
+        expected_refund_revision:
+          format: int64
+          minimum: 0
+          type: integer
+        items:
+          items:
+            $ref: "#/components/schemas/SelectedItem"
+          maxItems: 100
+          minItems: 1
+          type:
+            - array
+            - "null"
+        method:
+          enum:
+            - cash
+            - wallet
+            - debit_card
+            - qris
+            - transfer
+          type: string
+        mode:
+          enum:
+            - full
+            - items
+          type: string
+        reason:
+          maxLength: 500
+          minLength: 1
+          type: string
+      required:
+        - mode
+        - method
+        - reason
+        - expected_refund_revision
+        - items
+      type: object
     SessionData:
       additionalProperties: false
       properties:
@@ -1044,6 +2354,66 @@ components:
         - status
         - opened_at
       type: object
+    SessionRecord:
+      additionalProperties: false
+      properties:
+        can_close:
+          type: boolean
+        closed_at:
+          format: date-time
+          type: string
+        closing:
+          $ref: "#/components/schemas/ClosedReconciliation"
+        closing_cash:
+          examples:
+            - 750000
+          format: int64
+          type: integer
+        id:
+          format: uuid
+          type: string
+        opened_at:
+          format: date-time
+          type: string
+        opening_cash:
+          examples:
+            - 500000
+          format: int64
+          type: integer
+        opening_user_name:
+          type: string
+        outlet_id:
+          format: uuid
+          type: string
+        reconciliation_supported:
+          type: boolean
+        status:
+          enum:
+            - open
+            - closed
+          examples:
+            - open
+          type: string
+        summary:
+          $ref: "#/components/schemas/ReconciliationSummary"
+        unsupported_reason:
+          type: string
+        user_id:
+          format: uuid
+          type: string
+      required:
+        - opening_user_name
+        - summary
+        - closing
+        - reconciliation_supported
+        - can_close
+        - id
+        - outlet_id
+        - user_id
+        - opening_cash
+        - status
+        - opened_at
+      type: object
     SessionResponse:
       additionalProperties: false
       properties:
@@ -1059,6 +2429,105 @@ components:
           $ref: "#/components/schemas/Body"
       required:
         - error
+      type: object
+    StockCommand:
+      additionalProperties: false
+      properties:
+        initial_quantity:
+          format: int64
+          maximum: 1000000000
+          minimum: 0
+          type: integer
+        low_stock_threshold:
+          format: int64
+          maximum: 1000000000
+          minimum: 0
+          type: integer
+        quantity_delta:
+          format: int64
+          maximum: 1000000000
+          minimum: -1000000000
+          type: integer
+        reason:
+          maxLength: 500
+          minLength: 1
+          type: string
+        request_id:
+          format: uuid
+          type: string
+        track_stock:
+          type: boolean
+      required:
+        - request_id
+        - reason
+      type: object
+    StockHistoryOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/StockMovement"
+          type:
+            - array
+            - "null"
+        meta:
+          $ref: "#/components/schemas/MetaStruct"
+      required:
+        - data
+        - meta
+      type: object
+    StockMovement:
+      additionalProperties: false
+      properties:
+        balance_after:
+          format: int64
+          type: integer
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        low_stock_threshold:
+          format: int64
+          type: integer
+        product_id:
+          type: string
+        quantity_delta:
+          format: int64
+          type: integer
+        reason:
+          type: string
+        refund_id:
+          type: string
+        request_id:
+          type: string
+        track_stock:
+          type: boolean
+        transaction_id:
+          type: string
+      required:
+        - id
+        - product_id
+        - created_by
+        - kind
+        - quantity_delta
+        - balance_after
+        - track_stock
+        - low_stock_threshold
+        - reason
+        - created_at
+      type: object
+    StockWriteOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/StockMovement"
+      required:
+        - data
       type: object
     TableData:
       additionalProperties: false
@@ -1135,6 +2604,89 @@ components:
           type: number
       required:
         - tax_percentage
+      type: object
+    Totals:
+      additionalProperties: false
+      properties:
+        average_transaction:
+          format: int64
+          type:
+            - integer
+            - "null"
+        charged_sales:
+          format: int64
+          type: integer
+        discount_amount:
+          format: int64
+          type: integer
+        excluded_receipts:
+          format: int64
+          type: integer
+        gross_sales:
+          format: int64
+          type: integer
+        net_quantity:
+          format: int64
+          type: integer
+        net_sales:
+          format: int64
+          type: integer
+        net_tax:
+          format: int64
+          type: integer
+        refund_amount:
+          format: int64
+          type: integer
+        refund_count:
+          format: int64
+          type: integer
+        refund_net:
+          format: int64
+          type: integer
+        refund_tax:
+          format: int64
+          type: integer
+        returned_quantity:
+          format: int64
+          type: integer
+        sale_count:
+          format: int64
+          type: integer
+        sale_tax:
+          format: int64
+          type: integer
+        sales_after_discount:
+          format: int64
+          type: integer
+        sold_quantity:
+          format: int64
+          type: integer
+        unknown_category_quantity:
+          format: int64
+          type: integer
+        value_after_refunds:
+          format: int64
+          type: integer
+      required:
+        - gross_sales
+        - discount_amount
+        - sales_after_discount
+        - charged_sales
+        - refund_net
+        - refund_tax
+        - refund_amount
+        - net_sales
+        - sale_tax
+        - net_tax
+        - value_after_refunds
+        - sale_count
+        - refund_count
+        - sold_quantity
+        - returned_quantity
+        - net_quantity
+        - average_transaction
+        - excluded_receipts
+        - unknown_category_quantity
       type: object
     TransactionData:
       additionalProperties: false
@@ -1339,6 +2891,13 @@ components:
           maximum: 9007199254740991
           minimum: 0
           type: integer
+        saved_order_id:
+          format: uuid
+          type: string
+        saved_order_revision:
+          format: int64
+          minimum: 1
+          type: integer
         subtotal:
           format: int64
           maximum: 9007199254740991
@@ -1498,8 +3057,8 @@ components:
       type: object
   securitySchemes:
     firebaseBearer:
-      bearerFormat: Firebase ID token
-      description: Gunakan access_token Firebase dari endpoint /login.
+      bearerFormat: JWT
+      description: "Gunakan access_token dari /login: Firebase ID token atau local JWT sesuai AUTH_MODE."
       scheme: bearer
       type: http
 info:
@@ -1507,7 +3066,112 @@ info:
   version: 1.0.0
 openapi: 3.1.0
 paths:
+  /avatar-images/{filename}:
+    get:
+      description: Hanya PNG/JPEG dengan nama yang dibuat server. Tidak ada directory listing. Aktif ketika IMAGE_STORAGE_MODE=local.
+      operationId: get-avatar-image
+      parameters:
+        - in: path
+          name: filename
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            image/jpeg:
+              schema:
+                contentMediaType: application/octet-stream
+                format: binary
+                type: string
+            image/png:
+              schema:
+                contentMediaType: application/octet-stream
+                format: binary
+                type: string
+          description: Gambar produk
+        "404":
+          description: Data tidak ditemukan.
+      security:
+        - {}
+      summary: Foto profil lokal publik dengan nama acak
+      tags:
+        - Katalog
+    head:
+      description: Hanya PNG/JPEG dengan nama yang dibuat server. Tidak ada directory listing. Aktif ketika IMAGE_STORAGE_MODE=local.
+      operationId: head-avatar-image
+      parameters:
+        - in: path
+          name: filename
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Metadata foto profil lokal
+        "404":
+          description: Data tidak ditemukan.
+      security:
+        - {}
+      summary: Foto profil lokal publik dengan nama acak
+      tags:
+        - Katalog
   /cash-sessions:
+    get:
+      operationId: list-cash-sessions
+      parameters:
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            maximum: 1000000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 20
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashSessionsOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Riwayat sesi kas outlet
+      tags:
+        - Sesi Kas
     post:
       description: Mencatat kas awal Rupiah untuk membuka satu sesi kas pada outlet user. Hanya satu sesi boleh aktif per outlet.
       operationId: open-cash-session
@@ -1595,6 +3259,746 @@ paths:
       summary: Mengambil sesi kas aktif
       tags:
         - Sesi Kas
+  /cash-sessions/{session_id}:
+    get:
+      operationId: get-cash-session
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashDetailOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Ringkasan sesi kas
+      tags:
+        - Sesi Kas
+  /cash-sessions/{session_id}/activity:
+    get:
+      description: Total penuh sesi, halaman event terpisah. Kas awal + penjualan tunai - refund tunai + kas masuk - kas keluar. Sesi tertutup memakai ringkasan tersimpan.
+      operationId: cash-activity
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            maximum: 1000000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 20
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityPage"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Aktivitas tunai satu sesi
+      tags:
+        - Kas Kasir
+  /cash-sessions/{session_id}/close:
+    post:
+      description: Kasir pembuka atau manager outlet. Wajib request UUID dan preview hash. Permintaan identik mengembalikan hasil awal; pratinjau usang atau UUID berbeda untuk sesi tertutup ditolak. Tidak menghapus keranjang atau membuka sesi berikutnya.
+      operationId: close-cash-session
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseCommand"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashCloseOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Tutup sesi kas
+      tags:
+        - Sesi Kas
+  /cash-sessions/{session_id}/close/preview:
+    post:
+      description: Kasir pembuka atau manager outlet. Kas awal + tunai diterima setelah kembalian - refund tunai pada sesi ini. Alasan wajib bila selisih bukan nol.
+      operationId: preview-close-cash-session
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseSelection"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashPreviewOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Pratinjau hitungan kas
+      tags:
+        - Sesi Kas
+  /cash-sessions/{session_id}/movements:
+    post:
+      description: "Kasir pembuka atau manager. UUID terikat aktor/sesi/body/foto; replay identik tidak menambah entri. Bukti PNG/JPEG opsional <=3 MiB. Pengeluaran tidak boleh melebihi kas diharapkan. Respons hilang: pulihkan atau kirim ulang intent asli, jangan UUID baru."
+      operationId: create-cash-movement
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            encoding:
+              amount:
+                contentType: text/plain
+              kind:
+                contentType: text/plain
+              name:
+                contentType: text/plain
+              proof:
+                contentType: image/png,image/jpeg
+              reason:
+                contentType: text/plain
+              request_id:
+                contentType: text/plain
+            schema:
+              properties:
+                amount:
+                  format: int64
+                  maximum: 9007199254740991
+                  minimum: 1
+                  type: integer
+                kind:
+                  enum:
+                    - in
+                    - out
+                  type: string
+                name:
+                  maxLength: 120
+                  minLength: 1
+                  type: string
+                proof:
+                  contentEncoding: binary
+                  contentMediaType: application/octet-stream
+                  format: binary
+                  type: string
+                reason:
+                  maxLength: 500
+                  minLength: 1
+                  type: string
+                request_id:
+                  format: uuid
+                  type: string
+              required:
+                - request_id
+                - kind
+                - name
+                - amount
+                - reason
+              type: object
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovementOutputBody"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Catat kas masuk/keluar
+      tags:
+        - Kas Kasir
+  /cash-sessions/{session_id}/movements/by-request/{request_id}:
+    get:
+      operationId: recover-cash-movement
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovementOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Pulihkan permintaan kas sendiri
+      tags:
+        - Kas Kasir
+  /cash-sessions/{session_id}/movements/{movement_id}:
+    get:
+      operationId: cash-movement-detail
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: path
+          name: movement_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovementDetailOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Rincian entri kas
+      tags:
+        - Kas Kasir
+  /cash-sessions/{session_id}/movements/{movement_id}/proof:
+    get:
+      description: Wajib autentikasi dan outlet cocok. Byte PNG/JPEG asli; private,no-store. Tidak ada tautan publik atau token dalam URL.
+      operationId: cash-movement-proof
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: path
+          name: movement_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            image/jpeg:
+              schema:
+                contentMediaType: application/octet-stream
+                format: binary
+                type: string
+            image/png:
+              schema:
+                contentMediaType: application/octet-stream
+                format: binary
+                type: string
+          description: Bukti asli yang telah diotorisasi
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+            Content-Type:
+              schema:
+                type: string
+            X-Content-Type-Options:
+              schema:
+                type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Bukti kas privat
+      tags:
+        - Kas Kasir
+  /cash-sessions/{session_id}/movements/{movement_id}/reverse:
+    post:
+      description: "Kasir pembuka: entri sendiri; manager: entri outlet. Sesi wajib terbuka, satu koreksi per original, nominal/arah diturunkan server. Original tidak diubah."
+      operationId: reverse-cash-movement
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - in: path
+          name: movement_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReversalCommand"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovementOutputBody"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Koreksi entri kas dengan entri lawan
+      tags:
+        - Kas Kasir
   /customers:
     get:
       description: Mengambil pelanggan aktif outlet. Pencarian mencocokkan nama, nomor telepon, atau email.
@@ -1671,7 +4075,7 @@ paths:
         - Penjualan
   /health:
     get:
-      description: Memastikan API berjalan dan Firebase ID token berhasil diverifikasi.
+      description: Memastikan API berjalan dan Bearer token dari auth provider berhasil diverifikasi.
       operationId: get-health
       responses:
         "200":
@@ -1697,7 +4101,7 @@ paths:
         - Sistem
   /login:
     post:
-      description: Memvalidasi username, nomor HP, atau email dan password di PostgreSQL, lalu meminta Firebase menerbitkan token.
+      description: Memvalidasi kredensial PostgreSQL lalu menerbitkan Firebase ID token atau local JWT sesuai AUTH_MODE. Local token berlaku satu jam tanpa refresh; login ulang setelah kedaluwarsa.
       operationId: login
       requestBody:
         content:
@@ -2055,6 +4459,7 @@ paths:
           schema:
             enum:
               - paid
+              - partially_refunded
               - refunded
               - cancelled
             type: string
@@ -2153,6 +4558,37 @@ paths:
       summary: Mengambil persentase pajak pembayaran
       tags:
         - Pembayaran
+  /product-images/{filename}:
+    get:
+      description: Hanya PNG/JPEG dengan nama yang dibuat server. Tidak ada directory listing. Aktif ketika IMAGE_STORAGE_MODE=local.
+      operationId: get-product-image
+      parameters:
+        - in: path
+          name: filename
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            image/jpeg:
+              schema:
+                contentMediaType: application/octet-stream
+                format: binary
+                type: string
+            image/png:
+              schema:
+                contentMediaType: application/octet-stream
+                format: binary
+                type: string
+          description: Gambar produk
+        "404":
+          description: Data tidak ditemukan.
+      security:
+        - {}
+      summary: Gambar produk lokal publik dengan nama acak
+      tags:
+        - Katalog
   /product-types:
     get:
       operationId: list-product-types
@@ -2761,6 +5197,100 @@ paths:
       summary: Membuat produk
       tags:
         - Katalog
+  /products/export.xlsx:
+    get:
+      description: Manager. Seluruh halaman yang cocok dengan filter outlet; stok bersama ditulis satu kali per produk.
+      operationId: export-products-xlsx
+      parameters:
+        - explode: false
+          in: query
+          name: product_id
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: product_type
+          schema:
+            enum:
+              - food
+              - drink
+              - additional
+            type: string
+        - explode: false
+          in: query
+          name: category_id
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: searchByProductName
+          schema:
+            maxLength: 100
+            type: string
+        - explode: false
+          in: query
+          name: availability
+          schema:
+            enum:
+              - available
+              - low_stock
+              - out_of_stock
+            type: string
+        - explode: false
+          in: query
+          name: include_inactive
+          schema:
+            type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                contentEncoding: base64
+                type: string
+          description: OK
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Type:
+              schema:
+                type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Unduh workbook Excel produk dan variasi
+      tags:
+        - Katalog
   /products/{product_id}:
     delete:
       description: Khusus manager. Soft delete mempertahankan object gambar.
@@ -3053,9 +5583,281 @@ paths:
       summary: Memperbarui produk
       tags:
         - Katalog
+  /products/{product_id}/stock:
+    post:
+      description: Manager. request_id menduplikasi perintah yang identik. initial_quantity hanya ketika mengaktifkan pelacakan yang sebelumnya nonaktif.
+      operationId: configure-product-stock
+      parameters:
+        - in: path
+          name: product_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockCommand"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockWriteOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Mengatur pelacakan stok bersama
+      tags:
+        - Stok
+  /products/{product_id}/stock-adjustments:
+    post:
+      operationId: adjust-product-stock
+      parameters:
+        - in: path
+          name: product_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockCommand"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockWriteOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Menyesuaikan stok dengan alasan dan request_id
+      tags:
+        - Stok
+  /products/{product_id}/stock-movements:
+    get:
+      operationId: list-stock-movements
+      parameters:
+        - in: path
+          name: product_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 30
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockHistoryOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Riwayat perubahan stok outlet
+      tags:
+        - Stok
+  /refunds/by-request/{request_id}:
+    get:
+      operationId: refund-by-request
+      parameters:
+        - in: path
+          name: request_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Periksa hasil permintaan refund
+      tags:
+        - Refund
   /register:
     post:
-      description: Membuat outlet dan akun nonaktif, lalu mengirim OTP lima digit ke email verifikasi yang dipilih.
+      description: Membuat outlet dan akun nonaktif, lalu mengirim OTP lima digit. MAIL_MODE=disabled mengembalikan 503 sebelum menyimpan akun.
       operationId: register
       requestBody:
         content:
@@ -3106,6 +5908,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusError"
           description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
       security: []
       summary: Mendaftarkan usaha dan akun pemilik
       tags:
@@ -3169,6 +5977,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusError"
           description: Terjadi kesalahan pada server.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
       security: []
       summary: Mengonfirmasi OTP registrasi
       tags:
@@ -3238,10 +6052,444 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusError"
           description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
       security: []
       summary: Mengirim ulang OTP registrasi
       tags:
         - Registrasi
+  /reports/categories:
+    get:
+      description: Kasir/manager outlet aktif. Tanggal inklusif WIB, maksimal366 hari. Penjualan menurut paid_at, refund menurut created_at. Nilai asli; kategori historis yang tidak tercatat tidak ditebak.
+      operationId: report-categories
+      parameters:
+        - explode: false
+          in: query
+          name: start_date
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: end_date
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: query
+          schema:
+            maxLength: 200
+            type: string
+        - explode: false
+          in: query
+          name: sort
+          schema:
+            enum:
+              - quantity_desc
+              - net_desc
+              - name_asc
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            maximum: 1000000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 20
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Laporan categories
+      tags:
+        - Laporan
+  /reports/methods:
+    get:
+      description: Kasir/manager outlet aktif. Tanggal inklusif WIB, maksimal366 hari. Penjualan menurut paid_at, refund menurut created_at. Nilai asli; kategori historis yang tidak tercatat tidak ditebak.
+      operationId: report-methods
+      parameters:
+        - explode: false
+          in: query
+          name: start_date
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: end_date
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: query
+          schema:
+            maxLength: 200
+            type: string
+        - explode: false
+          in: query
+          name: sort
+          schema:
+            enum:
+              - quantity_desc
+              - net_desc
+              - name_asc
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            maximum: 1000000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 20
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Laporan methods
+      tags:
+        - Laporan
+  /reports/products:
+    get:
+      description: Kasir/manager outlet aktif. Tanggal inklusif WIB, maksimal366 hari. Penjualan menurut paid_at, refund menurut created_at. Nilai asli; kategori historis yang tidak tercatat tidak ditebak.
+      operationId: report-products
+      parameters:
+        - explode: false
+          in: query
+          name: start_date
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: end_date
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: query
+          schema:
+            maxLength: 200
+            type: string
+        - explode: false
+          in: query
+          name: sort
+          schema:
+            enum:
+              - quantity_desc
+              - net_desc
+              - name_asc
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            maximum: 1000000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 20
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Laporan products
+      tags:
+        - Laporan
+  /reports/summary:
+    get:
+      description: Kasir/manager outlet aktif. Tanggal inklusif WIB, maksimal366 hari. Penjualan menurut paid_at, refund menurut created_at. Nilai asli; kategori historis yang tidak tercatat tidak ditebak.
+      operationId: report-summary
+      parameters:
+        - explode: false
+          in: query
+          name: start_date
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: end_date
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: query
+          schema:
+            maxLength: 200
+            type: string
+        - explode: false
+          in: query
+          name: sort
+          schema:
+            enum:
+              - quantity_desc
+              - net_desc
+              - name_asc
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            maximum: 1000000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 20
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Laporan summary
+      tags:
+        - Laporan
+  /reports/{report_kind}/export.xlsx:
+    get:
+      description: Kasir/manager outlet. Semua baris cocok filter, tanpa pemotongan halaman. Dibuat ulang saat export; label literal tanpa formula.
+      operationId: export-report-xlsx
+      parameters:
+        - explode: false
+          in: query
+          name: start_date
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: end_date
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: query
+          schema:
+            maxLength: 200
+            type: string
+        - explode: false
+          in: query
+          name: sort
+          schema:
+            enum:
+              - quantity_desc
+              - net_desc
+              - name_asc
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            maximum: 1000000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 20
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+        - in: path
+          name: report_kind
+          required: true
+          schema:
+            enum:
+              - summary
+              - methods
+              - products
+              - categories
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                contentEncoding: base64
+                type: string
+          description: OK
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Type:
+              schema:
+                type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Export Excel laporan
+      tags:
+        - Laporan
   /reservation-types:
     get:
       operationId: list-reservation-types
@@ -3801,6 +7049,321 @@ paths:
       summary: Memperbarui meja restoran
       tags:
         - Reservasi
+  /saved-orders:
+    get:
+      operationId: list-saved-orders
+      parameters:
+        - explode: false
+          in: query
+          name: search
+          schema:
+            maxLength: 100
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            maximum: 1000000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 20
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Daftar pesanan tersimpan outlet
+      tags:
+        - Pesanan tersimpan
+    post:
+      operationId: create-saved-order
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Mutation"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Simpan pesanan belum dibayar
+      tags:
+        - Pesanan tersimpan
+  /saved-orders/{saved_order_id}:
+    delete:
+      operationId: delete-saved-order
+      parameters:
+        - in: path
+          name: saved_order_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: request_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: expected_revision
+          required: true
+          schema:
+            format: int64
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Hapus pesanan belum dibayar
+      tags:
+        - Pesanan tersimpan
+    get:
+      operationId: get-saved-order
+      parameters:
+        - in: path
+          name: saved_order_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Detail dan status pesanan tersimpan
+      tags:
+        - Pesanan tersimpan
+    put:
+      operationId: update-saved-order
+      parameters:
+        - in: path
+          name: saved_order_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Mutation"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Ubah pesanan pada revisi yang diharapkan
+      tags:
+        - Pesanan tersimpan
   /transactions:
     post:
       description: Menyimpan nominal hasil kalkulasi FE dan snapshot seluruh item secara atomik pada sesi kas aktif. Backend memvalidasi konsistensi tanpa query agregasi cart.
@@ -3857,9 +7420,262 @@ paths:
       summary: Menyimpan transaksi pembayaran
       tags:
         - Pembayaran
+  /transactions/{transaction_id}:
+    get:
+      operationId: get-transaction-detail
+      parameters:
+        - in: path
+          name: transaction_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DetailOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Detail transaksi dan sisa refund
+      tags:
+        - Refund
+  /transactions/{transaction_id}/refunds:
+    get:
+      operationId: list-transaction-refunds
+      parameters:
+        - in: path
+          name: transaction_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: page
+          schema:
+            default: 1
+            format: int64
+            maximum: 1000000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: page_size
+          schema:
+            default: 20
+            format: int64
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Riwayat refund transaksi
+      tags:
+        - Refund
+    post:
+      operationId: confirm-refund
+      parameters:
+        - in: path
+          name: transaction_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Command"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundOutputBody"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Catat uang yang sudah dikembalikan secara manual
+      tags:
+        - Refund
+  /transactions/{transaction_id}/refunds/preview:
+    post:
+      operationId: preview-refund
+      parameters:
+        - in: path
+          name: transaction_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Selection"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreviewOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Pratinjau refund tanpa mengubah uang atau stok
+      tags:
+        - Refund
   /users/me:
     get:
-      description: Mengambil profil PostgreSQL berdasarkan UID pada Firebase ID token.
+      description: Mengambil profil PostgreSQL berdasarkan identitas token lokal atau Firebase.
       operationId: get-current-user
       responses:
         "200":
@@ -3890,7 +7706,7 @@ paths:
       tags:
         - User
     patch:
-      description: Multipart parsial untuk nama, nomor HP, email, dan avatar PNG/JPEG opsional maksimal 3 MiB. Role serta outlet tetap read-only.
+      description: Multipart parsial untuk nama, nomor HP, email, tanggal lahir YYYY-MM-DD (bukan masa depan), gender_id referensi, alamat pribadi maksimal 1000 karakter, dan avatar PNG/JPEG maksimal 3 MiB, 4096 px per sisi/16 MP. Omit mempertahankan nilai; string kosong menghapus field opsional. Username, role serta outlet read-only.
       operationId: update-current-user
       requestBody:
         content:
@@ -3898,11 +7714,17 @@ paths:
             encoding:
               avatar:
                 contentType: image/png,image/jpeg
+              date_of_birth:
+                contentType: text/plain
               email:
                 contentType: text/plain
               first_name:
                 contentType: text/plain
+              gender_id:
+                contentType: text/plain
               last_name:
+                contentType: text/plain
+              personal_address:
                 contentType: text/plain
               phone_number:
                 contentType: text/plain
@@ -3915,14 +7737,21 @@ paths:
                   contentMediaType: application/octet-stream
                   format: binary
                   type: string
+                date_of_birth:
+                  type: string
                 email:
                   maxLength: 254
                   type: string
                 first_name:
                   maxLength: 100
                   type: string
+                gender_id:
+                  type: string
                 last_name:
                   maxLength: 100
+                  type: string
+                personal_address:
+                  maxLength: 1000
                   type: string
                 phone_number:
                   maxLength: 30
@@ -3989,9 +7818,34 @@ paths:
       summary: Memperbarui profil sendiri
       tags:
         - User
+  /users/me/genders:
+    get:
+      operationId: list-profile-genders
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenderOutputBody"
+          description: OK
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+      summary: Pilihan gender profil
+      tags:
+        - User
   /users/me/password:
     patch:
-      description: Memverifikasi password lama lalu menyimpan bcrypt hash password baru.
+      description: Memverifikasi password lama lalu menyimpan bcrypt hash password baru (8–72 byte). Hanya tersedia bila can_change_password=true (AUTH_MODE=local). Tidak mencabut JWT yang sudah terbit. Respons hilang mungkin berarti perubahan tersimpan; jangan retry otomatis.
       operationId: change-current-user-password
       requestBody:
         content:
@@ -4014,6 +7868,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusError"
           description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
         "422":
           content:
             application/json:
@@ -4026,6 +7886,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusError"
           description: Terjadi kesalahan pada server.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
       summary: Mengubah password akun
       tags:
         - User
@@ -4054,6 +7920,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusError"
           description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
         "422":
           content:
             application/json:
@@ -4066,6 +7938,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusError"
           description: Terjadi kesalahan pada server.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
       summary: Mengubah PIN akun
       tags:
         - User

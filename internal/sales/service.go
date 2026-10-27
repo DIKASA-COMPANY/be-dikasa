@@ -112,7 +112,7 @@ func normalizePagination(page, pageSize *int) error {
 
 func validOrderStatus(status string) bool {
 	switch status {
-	case StatusPaid, StatusRefunded, StatusCancelled:
+	case StatusPaid, StatusPartiallyRefunded, StatusRefunded, StatusCancelled:
 		return true
 	default:
 		return false

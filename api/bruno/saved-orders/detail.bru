@@ -1,0 +1,24 @@
+meta {
+  name: Saved Order Detail And Recovery
+  type: http
+  seq: 62
+}
+
+get {
+  url: {{baseUrl}}/dikasa/v1/saved-orders/{{savedOrderId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.id: eq {{savedOrderId}}
+}
+
+docs {
+  Paid detail includes transaction_id. Do not submit a fresh unlinked payment to recover a timeout.
+}

@@ -1,0 +1,42 @@
+meta {
+  name: Record Whole Remaining Refund
+  type: http
+  seq: 77
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/transactions/{{refundTransactionId}}/refunds
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "mode": "full",
+  "method": "cash",
+  "reason": "Unopened item returned",
+  "expected_refund_revision": {{refundRevision}},
+  "items": [
+    {
+      "transaction_item_id": "{{refundItemId}}",
+      "quantity": {{refundRemainingQuantity}},
+      "restock_quantity": 0
+    }
+  ],
+  "request_id": "{{refundFullRequestId}}",
+  "preview_hash": "{{refundFullPreviewHash}}"
+}
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.refund_number: isNotEmpty
+}
+
+docs {
+  Same exact full selection as its preview. Only remaining units/value are refunded; never delete the paid receipt.
+}

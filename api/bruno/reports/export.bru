@@ -1,0 +1,19 @@
+meta {
+ name: Export report XLSX
+ type: http
+ seq: 94
+}
+get {
+ url: {{baseUrl}}/dikasa/v1/reports/products/export.xlsx?start_date={{reportStartDate}}&end_date={{reportEndDate}}&sort=net_desc
+ body: none
+ auth: bearer
+}
+auth:bearer {
+ token: {{accessToken}}
+}
+assert {
+ res.status: eq 200
+}
+docs {
+ Response is a real XLSX attachment with literal labels, numeric amounts and report metadata. It includes every matching group, not only the displayed page. Export is freshly generated; no application data changes.
+}

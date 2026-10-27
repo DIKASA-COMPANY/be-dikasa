@@ -7,11 +7,14 @@ import (
 	"net/mail"
 	"regexp"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
+	// ErrPasswordChangesDisabled prevents local changes to provider-managed passwords.
+	ErrPasswordChangesDisabled = errors.New("password changes unsupported in configured auth mode")
 	// ErrInvalidProfile menandakan field profil tidak memenuhi aturan domain.
 	ErrInvalidProfile = errors.New("profile input is invalid")
 	// ErrInvalidCurrentPIN menandakan PIN lama tidak cocok.
@@ -37,6 +40,7 @@ var (
 // ProfileMutation adalah perubahan parsial profil akun sendiri.
 type ProfileMutation struct {
 	FirstName, LastName, PhoneNumber, Email string
+	DateOfBirth, GenderID, PersonalAddress  string
 	Fields                                  map[string]bool
 	Avatar                                  *AvatarUpload
 	RemoveAvatar                            bool
@@ -104,6 +108,9 @@ func (service *Service) UpdateProfile(ctx context.Context, userID string, mutati
 	if err != nil {
 		return nil, err
 	}
+	// Work on a copy: rejected mutations must not change cached/fake repository state.
+	copyAccount := *account
+	account = &copyAccount
 	isSet := func(field string) bool { return mutation.Fields == nil || mutation.Fields[field] }
 	if isSet("first_name") {
 		account.FirstName = strings.TrimSpace(mutation.FirstName)
@@ -129,6 +136,9 @@ func (service *Service) UpdateProfile(ctx context.Context, userID string, mutati
 	if account.FirstName == "" || len([]rune(account.FirstName)) > 100 || len([]rune(account.LastName)) > 100 || len(account.PhoneNumber) < 8 || len(account.PhoneNumber) > 30 {
 		return nil, ErrInvalidProfile
 	}
+	if err := service.applyPersonalDetails(ctx, account, mutation); err != nil {
+		return nil, err
+	}
 	oldObject := account.AvatarObjectName
 	var uploaded *AvatarImage
 	if mutation.Avatar != nil {
@@ -145,13 +155,18 @@ func (service *Service) UpdateProfile(ctx context.Context, userID string, mutati
 	}
 	if service.settings == nil {
 		if uploaded != nil {
-			_ = service.avatars.Delete(ctx, uploaded.ObjectName)
+			service.cleanupUnreferencedAvatar(ctx, userID, uploaded.ObjectName)
 		}
 		return nil, errors.New("user settings repository unavailable")
 	}
-	if err = service.settings.UpdateProfile(ctx, account); err != nil {
+	if atomic, ok := service.repository.(atomicSettingsRepository); ok {
+		account, err = atomic.PatchProfile(ctx, account, mutation, oldObject)
+	} else {
+		err = service.settings.UpdateProfile(ctx, account)
+	}
+	if err != nil {
 		if uploaded != nil {
-			_ = service.avatars.Delete(ctx, uploaded.ObjectName)
+			service.cleanupUnreferencedAvatar(ctx, userID, uploaded.ObjectName)
 		}
 		return nil, err
 	}
@@ -185,11 +200,20 @@ func (service *Service) ChangePIN(ctx context.Context, userID, currentPIN, newPI
 	if service.settings == nil {
 		return errors.New("user settings repository unavailable")
 	}
+	if atomic, ok := service.repository.(atomicSettingsRepository); ok {
+		return atomic.ReplaceCredential(ctx, userID, "pin_hash", account.PINHash, hash)
+	}
 	return service.settings.UpdatePINHash(ctx, userID, hash)
 }
 
 // ChangePassword memverifikasi password lama dan menyimpan bcrypt hash password baru.
 func (service *Service) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+	if !service.passwordChangesAllowed {
+		return ErrPasswordChangesDisabled
+	}
+	if len(currentPassword) < 8 || len(currentPassword) > 72 {
+		return ErrInvalidCurrentPassword
+	}
 	if len(newPassword) < 8 || len(newPassword) > 72 {
 		return ErrInvalidPassword
 	}
@@ -210,5 +234,31 @@ func (service *Service) ChangePassword(ctx context.Context, userID, currentPassw
 	if service.settings == nil {
 		return errors.New("user settings repository unavailable")
 	}
+	if atomic, ok := service.repository.(atomicSettingsRepository); ok {
+		return atomic.ReplaceCredential(ctx, userID, "password_hash", &account.PasswordHash, hash)
+	}
 	return service.settings.UpdatePasswordHash(ctx, userID, hash)
+}
+
+// WithProfileClock injects the clock used for birth-date validation.
+func WithProfileClock(now func() time.Time) ServiceOption { return func(s *Service) { s.now = now } }
+
+// WithPasswordChangesAllowed configures whether the authentication provider permits local password changes.
+func WithPasswordChangesAllowed(allowed bool) ServiceOption {
+	return func(s *Service) { s.passwordChangesAllowed = allowed }
+}
+
+// cleanupUnreferencedAvatar avoids deleting a live photo after an ambiguous commit failure.
+// If the database cannot confirm the reference, retain the potential orphan for reconciliation.
+func (s *Service) cleanupUnreferencedAvatar(ctx context.Context, id, object string) {
+	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
+	current, e := s.repository.FindByID(cleanup, id)
+	if e != nil && !errors.Is(e, ErrNotFound) {
+		return
+	}
+	if current != nil && current.AvatarObjectName != nil && *current.AvatarObjectName == object {
+		return
+	}
+	_ = s.avatars.Delete(cleanup, object)
 }

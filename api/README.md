@@ -9,7 +9,12 @@
 All application endpoints use the `/dikasa/v1` prefix. Login, registration,
 registration OTP confirmation/resend, Swagger, and OpenAPI are public. Other
 endpoints, including cash sessions, products, product categories, order types, tables, reservations, orders, and customers, require
-`Authorization: Bearer <Firebase ID token>`.
+`Authorization: Bearer <access_token>` (Firebase ID token or local JWT according
+to `AUTH_MODE`). Local sessions last one hour and have no refresh token; log in
+again on expiry. `firebase_uid` remains the PostgreSQL UUID in either mode.
+Select Bruno's `local-auth` environment for the explicit development seed account.
+When `MAIL_MODE=disabled`, all three registration endpoints return HTTP 503
+before touching the database. Existing login and protected routes remain available.
 
 The payment screen reads the current outlet tax from
 `GET /dikasa/v1/payments/tax-percentage`. The response contains only the
@@ -56,3 +61,23 @@ Account settings use `PATCH /users/me` for multipart profile/avatar changes,
 `PATCH /users/me/password` for password changes. Role and outlet are read-only.
 
 See the root `README.md` for the full local setup and Bruno walkthrough.
+
+Product photos can use local storage without Firebase. Shared quantitative stock,
+deduplicated stock adjustments/history, and manager XLSX exports are described in
+[`docs/development/product-stock-and-images.md`](../docs/development/product-stock-and-images.md).
+Transactions now reject stale catalog/variant prices or unavailable stock with
+specific 409 errors. Regenerate OpenAPI with `go generate ./internal/server` after
+contract changes. Bruno stock request IDs must be fresh per intended action and
+reused unchanged only for retries of the same command.
+
+Saved-cart endpoints and optional draft checkout association are documented in
+[Saved unpaid orders](../docs/development/saved-orders.md). Bruno `saved-orders/`
+includes create/list/detail/update/delete, immutable replay and stale-conflict examples.
+
+Refund detail/preview/confirmation/history/recovery endpoints and original-value
+allocation rules are documented in [refunds.md](../docs/development/refunds.md).
+Bruno `refunds/` includes whole/item, replay and stale-preview examples.
+
+Cash-session closing, reconciliation and recovery: [Cash reconciliation guide](../docs/development/cash-reconciliation.md).
+
+Four sales reports and XLSX: [Reporting guide](../docs/development/sales-reports.md).

@@ -26,6 +26,12 @@ assert {
   res.body.data.token_type: eq Bearer
 }
 
+docs {
+  Select local-auth after running `go run ./cmd/seed-local` to test without Firebase.
+  Local access tokens expire after one hour; refresh_token is empty. Log in again.
+  The existing local environment continues to support Firebase accounts.
+}
+
 script:post-response {
   if (res.status === 200) {
     bru.setEnvVar("accessToken", res.body.data.access_token);

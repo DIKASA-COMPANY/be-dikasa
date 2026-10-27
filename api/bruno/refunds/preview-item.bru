@@ -1,0 +1,44 @@
+meta {
+  name: Preview Individual Item Refund
+  type: http
+  seq: 71
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/transactions/{{refundTransactionId}}/refunds/preview
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "mode": "items",
+  "method": "cash",
+  "reason": "Unopened item returned",
+  "expected_refund_revision": {{refundRevision}},
+  "items": [
+    {
+      "transaction_item_id": "{{refundItemId}}",
+      "quantity": 1,
+      "restock_quantity": 0
+    }
+  ]
+}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.preview_hash: isNotEmpty
+}
+
+script:post-response {
+  if (res.status === 200) bru.setEnvVar("refundPreviewHash", res.body.data.preview_hash);
+}
+
+docs {
+  Amounts are calculated from original sale snapshots. Default restock_quantity0. Preview has no side effects.
+}

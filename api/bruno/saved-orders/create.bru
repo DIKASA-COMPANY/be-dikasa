@@ -1,0 +1,50 @@
+meta {
+  name: Save Unpaid Order
+  type: http
+  seq: 60
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/saved-orders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+{
+  "request_id": "{{savedCreateRequestId}}",
+  "label": "Parked order example",
+  "order_type_id": "{{orderTypeId}}",
+  "items": [
+    {
+      "product_id": "{{productId}}",
+      "product_name": "{{savedProductName}}",
+      "unit_price": {{savedUnitPrice}},
+      "quantity": 1,
+      "notes": "Less spicy"
+    }
+  ]
+}
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.status: eq open
+  res.body.data.revision: eq 1
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setEnvVar("savedOrderId", res.body.data.id);
+    bru.setEnvVar("savedOrderRevision", res.body.data.revision);
+  }
+}
+
+docs {
+  Fresh request UUID per new intended cart. Reuse it and exact body only for retries.
+  Product/order IDs and unit price must match your outlet; no stock is reserved.
+}

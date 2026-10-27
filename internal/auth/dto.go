@@ -1,6 +1,6 @@
 package auth
 
-// Session menyimpan Firebase ID token dan refresh token setelah login berhasil.
+// Session holds a provider-issued access token and an optional Firebase refresh token.
 type Session struct {
 	IDToken      string
 	RefreshToken string
@@ -19,18 +19,18 @@ type LoginInput struct {
 	Body LoginRequest
 }
 
-// LoginResponse adalah envelope sesi Firebase setelah autentikasi berhasil.
+// LoginResponse is the session envelope for both Firebase and local authentication.
 type LoginResponse struct {
 	Data LoginResponseData `json:"data"`
 }
 
-// LoginResponseData memuat Firebase ID token yang digunakan sebagai Bearer token.
+// LoginResponseData contains the Bearer session issued by the configured auth provider.
 type LoginResponseData struct {
-	AccessToken  string `json:"access_token" doc:"Firebase ID token untuk Authorization Bearer"`
-	RefreshToken string `json:"refresh_token" doc:"Firebase refresh token untuk memperbarui sesi"`
+	AccessToken  string `json:"access_token" doc:"Bearer token: Firebase ID token atau local JWT sesuai AUTH_MODE"`
+	RefreshToken string `json:"refresh_token" doc:"Firebase refresh token; kosong pada local mode (login ulang setelah satu jam)"`
 	TokenType    string `json:"token_type" enum:"Bearer" example:"Bearer"`
 	ExpiresIn    int    `json:"expires_in" example:"3600"`
-	FirebaseUID  string `json:"firebase_uid" doc:"Sama dengan UUID user PostgreSQL"`
+	FirebaseUID  string `json:"firebase_uid" doc:"UUID user PostgreSQL pada kedua mode; nama field dipertahankan untuk kompatibilitas"`
 }
 
 // LoginOutput membungkus respons sukses endpoint login untuk Huma.

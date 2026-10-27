@@ -1,0 +1,21 @@
+meta {
+ name: Sales report summary
+ type: http
+ seq: 90
+}
+get {
+ url: {{baseUrl}}/dikasa/v1/reports/summary?start_date={{reportStartDate}}&end_date={{reportEndDate}}
+ body: none
+ auth: bearer
+}
+auth:bearer {
+ token: {{accessToken}}
+}
+assert {
+ res.status: eq 200
+ res.body.data.kind: eq summary
+ res.body.meta.timezone: eq Asia/Jakarta
+}
+docs {
+ Active cashier/manager, current outlet only. Dates inclusive WIB. Refunds are deducted on their own date. Product/category query and sort filters apply before pagination and totals.
+}

@@ -341,7 +341,7 @@ func productData(value Product) ProductData {
 	}
 	return ProductData{ID: value.ID, Name: value.Name, Price: value.Price, SellingPrice: value.Price,
 		OnlineSellingPrice: value.OnlineSellingPrice, CostPrice: value.CostPrice, OnlineCostPrice: value.OnlineCostPrice,
-		StockStatus: value.StockStatus, Description: value.Description, ImageURL: value.ImageURL,
+		StockStatus: value.StockStatus, TrackStock: value.TrackStock, StockQuantity: value.StockQuantity, LowStockThreshold: value.LowStockThreshold, EffectiveStockStatus: value.EffectiveStockStatus(), Description: value.Description, ImageURL: value.ImageURL,
 		IsHighlighted: value.IsHighlighted, SortOrder: value.SortOrder, IsActive: value.IsActive,
 		Category: categoryData(value.Category), ProductTypeCode: value.Category.ProductType.Code, Variations: variations}
 }
@@ -371,6 +371,8 @@ func variantData(value ProductVariant) ProductVariantData {
 
 func catalogStatusError(err error) *sharederrors.StatusError {
 	switch {
+	case errors.Is(err, ErrInsufficientStock):
+		return sharederrors.New(409, "STOK_TIDAK_CUKUP", "Stok tidak cukup atau jumlah di luar batas.", nil)
 	case errors.Is(err, ErrForbidden):
 		return sharederrors.Standard(403, nil)
 	case errors.Is(err, ErrNotFound):

@@ -18,4 +18,14 @@ assert {
   res.status: eq 200
   res.body.data.id: isNotEmpty
   res.body.data.username: isNotEmpty
+
+}
+
+tests {
+  test("profile capabilities are booleans", function () {
+    expect(res.body.data.has_pin).to.be.a("boolean");
+    expect(res.body.data.can_change_password).to.be.a("boolean");
+    expect(res.body.data).not.to.have.property("password_hash");
+    expect(res.body.data).not.to.have.property("pin_hash");
+  });
 }

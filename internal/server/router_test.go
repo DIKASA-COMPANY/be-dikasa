@@ -18,9 +18,12 @@ import (
 	"be-dikasa/internal/cash"
 	"be-dikasa/internal/catalog"
 	"be-dikasa/internal/payment"
+	"be-dikasa/internal/refund"
 	"be-dikasa/internal/registration"
+	"be-dikasa/internal/reports"
 	"be-dikasa/internal/reservation"
 	"be-dikasa/internal/sales"
+	"be-dikasa/internal/savedorder"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
 )
@@ -202,12 +205,19 @@ func (routerSalesProvider) ListCustomers(context.Context, string, sales.Customer
 func newTestRouter() http.Handler {
 	userService := user.NewService(routerUserRepository{})
 	return NewRouter(Dependencies{
+		StockHandler:        catalog.NewStockHandler(nil),
+		ExportHandler:       catalog.NewExportHandler(nil),
 		AuthHandler:         auth.NewHandler(routerSignInProvider{}, sharedvalidator.New()),
 		RegistrationHandler: registration.NewHandler(routerRegistrationProvider{}, sharedvalidator.New()),
 		ReservationHandler:  reservation.NewHandler(routerReservationProvider{}, sharedvalidator.New()),
 		UserHandler:         user.NewHandler(userService),
 		CashHandler:         cash.NewHandler(routerCashProvider{}, sharedvalidator.New()),
+		ReportsHandler:      reports.NewHandler(nil),
+		CashClosingHandler:  cash.NewReconciliationHandler(nil),
+		MovementHandler:     cash.NewMovementHandler(nil),
 		CatalogHandler:      catalog.NewHandler(routerCatalogProvider{}, sharedvalidator.New()),
+		RefundHandler:       refund.NewHandler(nil),
+		SavedOrderHandler:   savedorder.NewHandler(nil),
 		PaymentHandler:      payment.NewHandler(routerPaymentProvider{}),
 		SalesHandler:        sales.NewHandler(routerSalesProvider{}),
 		TokenVerifier:       stubTokenVerifier{token: &firebaseauth.Token{UID: "user-id"}},
@@ -475,5 +485,76 @@ func TestCommittedOpenAPIMatchesServerOutput(t *testing.T) {
 	router.ServeHTTP(response, request)
 	if !bytes.Equal(committed, response.Body.Bytes()) {
 		t.Fatal("api/openapi.yaml tidak sinkron; jalankan go generate ./internal/server")
+	}
+}
+
+func TestRouterRejectsOversizedProductMultipartBeforeParsing(t *testing.T) {
+	router := newTestRouter()
+	body := bytes.NewReader(make([]byte, 4*1024*1024+1))
+	request := httptest.NewRequest(http.MethodPost, "/dikasa/v1/products", body)
+	request.Header.Set("Content-Type", "multipart/form-data; boundary=test")
+	request.Header.Set("Authorization", "Bearer valid-token")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413 before multipart parse, got %d", response.Code)
+	}
+}
+
+func (routerUserRepository) ListGenders(context.Context) ([]user.Gender, error) {
+	return []user.Gender{{ID: "11111111-1111-4111-8111-111111111111", Name: "Pria"}}, nil
+}
+func TestRouterAccountReferenceAndOptionalProfileFields(t *testing.T) {
+	r := newTestRouter()
+	req := httptest.NewRequest("GET", "/dikasa/v1/users/me/genders", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 401 {
+		t.Fatal("reference route must require authentication", w.Code)
+	}
+	req = httptest.NewRequest("GET", "/dikasa/v1/users/me/genders", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"name":"Pria"`) {
+		t.Fatal("reference route", w.Code, w.Body.String())
+	}
+	var body bytes.Buffer
+	f := multipart.NewWriter(&body)
+	for k, v := range map[string]string{"date_of_birth": "1990-08-10", "personal_address": "Home", "gender_id": "11111111-1111-4111-8111-111111111111", "role_id": "forged", "outlet_id": "forged"} {
+		f.WriteField(k, v)
+	}
+	f.Close()
+	req = httptest.NewRequest("PATCH", "/dikasa/v1/users/me", &body)
+	req.Header.Set("Content-Type", f.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"personal_address":"Home"`) || !strings.Contains(w.Body.String(), `"date_of_birth":"1990-08-10"`) || strings.Contains(w.Body.String(), "forged") {
+		t.Fatal("personal profile contract", w.Code, w.Body.String())
+	}
+}
+func TestRouterRejectsOversizedAccountMultipart(t *testing.T) {
+	r := newTestRouter()
+	req := httptest.NewRequest("PATCH", "/dikasa/v1/users/me", strings.NewReader("bad body"))
+	req.ContentLength = 4*1024*1024 + 1
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=test")
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 413 {
+		t.Fatal("unbounded profile multipart", w.Code)
+	}
+}
+
+func TestRouterInitialPINAcceptsOmittedCurrentPIN(t *testing.T) {
+	r := newTestRouter()
+	req := httptest.NewRequest("PATCH", "/dikasa/v1/users/me/pin", strings.NewReader(`{"new_pin":"012345","new_pin_confirmation":"012345"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != 204 {
+		t.Fatal("initial PIN HTTP contract", w.Code, w.Body.String())
 	}
 }
