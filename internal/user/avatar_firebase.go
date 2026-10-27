@@ -1,90 +1,80 @@
 package user
 
 import (
+	"be-dikasa/internal/shared/firebaseimage"
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"net/url"
+	"path"
 	"strings"
 
-	"cloud.google.com/go/storage"
 	"github.com/google/uuid"
 )
 
 const maxAvatarBytes int64 = 3 * 1024 * 1024
 
-// AvatarObjectBucket adalah operasi bucket minimum agar Firebase avatar dapat diuji tanpa jaringan.
-type AvatarObjectBucket interface {
-	Put(context.Context, string, io.Reader, string, map[string]string) error
-	Delete(context.Context, string) error
+// FirebaseAvatarStore stores avatars through the shared Firebase uploader.
+type FirebaseAvatarStore struct{ uploader *firebaseimage.Uploader }
+
+// NewFirebaseAvatarStore creates avatar storage using the shared upload mechanism.
+func NewFirebaseAvatarStore(uploader *firebaseimage.Uploader) *FirebaseAvatarStore {
+	return &FirebaseAvatarStore{uploader: uploader}
 }
 
-// FirebaseAvatarStore menyimpan avatar dengan Firebase download token.
-type FirebaseAvatarStore struct {
-	bucketName string
-	bucket     AvatarObjectBucket
-}
-
-// NewFirebaseAvatarStore membuat storage avatar pada bucket yang siap dipakai.
-func NewFirebaseAvatarStore(bucketName string, bucket AvatarObjectBucket) *FirebaseAvatarStore {
-	return &FirebaseAvatarStore{bucketName: strings.TrimSpace(bucketName), bucket: bucket}
-}
-
-// Save memvalidasi MIME, signature, extension, decode, dan batas tiga MiB sebelum upload.
+// Save validates an avatar, uploads it to Firebase, and returns only its download URL.
 func (store *FirebaseAvatarStore) Save(ctx context.Context, outletID, userID string, upload *AvatarUpload) (*AvatarImage, error) {
+	outlet, err := uuid.Parse(outletID)
+	if err != nil || outlet == uuid.Nil || outlet.String() != outletID {
+		return nil, ErrInvalidAvatar
+	}
+	account, err := uuid.Parse(userID)
+	if err != nil || account == uuid.Nil || account.String() != userID {
+		return nil, ErrInvalidAvatar
+	}
 	content, extension, declared, err := validateAvatar(upload)
 	if err != nil {
 		return nil, err
 	}
-	token := uuid.NewString()
-	objectName := fmt.Sprintf("outlets/%s/users/%s/avatar/%s%s", outletID, userID, uuid.NewString(), extension)
-	if err = store.bucket.Put(ctx, objectName, bytes.NewReader(content), declared, map[string]string{"firebaseStorageDownloadTokens": token}); err != nil {
+	objectName := fmt.Sprintf("outlets/%s/users/%s/avatar/%s%s", outlet, account, uuid.NewString(), extension)
+	downloadURL, err := store.uploader.Upload(ctx, objectName, bytes.NewReader(content), declared)
+	if err != nil {
 		return nil, fmt.Errorf("%w: upload", ErrAvatarStorage)
 	}
-	downloadURL := fmt.Sprintf("https://firebasestorage.googleapis.com/v0/b/%s/o/%s?alt=media&token=%s", url.PathEscape(store.bucketName), url.PathEscape(objectName), url.QueryEscape(token))
-	return &AvatarImage{URL: downloadURL, ObjectName: objectName}, nil
+	return &AvatarImage{URL: downloadURL}, nil
 }
 
-// Delete menghapus avatar yang sudah tidak direferensikan.
-func (store *FirebaseAvatarStore) Delete(ctx context.Context, objectName string) error {
-	if strings.TrimSpace(objectName) == "" {
+// Delete removes an avatar identified by its persisted Firebase download URL.
+func (store *FirebaseAvatarStore) Delete(ctx context.Context, downloadURL string) error {
+	if strings.TrimSpace(downloadURL) == "" {
 		return nil
 	}
-	if !strings.HasPrefix(objectName, "outlets/") || !strings.Contains(objectName, "/avatar/") {
+	objectName, err := store.uploader.ObjectName(downloadURL)
+	if err != nil || !validFirebaseAvatarKey(objectName) {
 		return ErrInvalidAvatar
 	}
-	if err := store.bucket.Delete(ctx, objectName); err != nil {
+	if err = store.uploader.DeleteURL(ctx, downloadURL); err != nil {
 		return fmt.Errorf("%w: delete", ErrAvatarStorage)
 	}
 	return nil
 }
 
-type cloudAvatarBucket struct{ handle *storage.BucketHandle }
-
-func (bucket cloudAvatarBucket) Put(ctx context.Context, name string, source io.Reader, contentType string, metadata map[string]string) error {
-	writer := bucket.handle.Object(name).NewWriter(ctx)
-	writer.ContentType, writer.Metadata = contentType, metadata
-	if _, err := io.Copy(writer, source); err != nil {
-		_ = writer.CloseWithError(err)
-		return err
+// validFirebaseAvatarKey restricts deletion to server-generated avatar objects.
+func validFirebaseAvatarKey(objectName string) bool {
+	parts := strings.Split(objectName, "/")
+	if len(parts) != 6 || parts[0] != "outlets" || parts[2] != "users" || parts[4] != "avatar" {
+		return false
 	}
-	return writer.Close()
-}
-func (bucket cloudAvatarBucket) Delete(ctx context.Context, name string) error {
-	return bucket.handle.Object(name).Delete(ctx)
-}
-
-// NewCloudFirebaseAvatarStore membuka dan memverifikasi bucket menggunakan Application Default Credentials.
-func NewCloudFirebaseAvatarStore(ctx context.Context, bucketName string) (*FirebaseAvatarStore, func() error, error) {
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("inisialisasi avatar Firebase Storage: %w", err)
+	for _, index := range []int{1, 3} {
+		id, err := uuid.Parse(parts[index])
+		if err != nil || id == uuid.Nil || id.String() != parts[index] {
+			return false
+		}
 	}
-	bucket := client.Bucket(bucketName)
-	if _, err = bucket.Attrs(ctx); err != nil {
-		_ = client.Close()
-		return nil, nil, fmt.Errorf("verifikasi bucket avatar Firebase Storage: %w", err)
+	extension := path.Ext(parts[5])
+	if extension != ".png" && extension != ".jpg" {
+		return false
 	}
-	return NewFirebaseAvatarStore(bucketName, cloudAvatarBucket{handle: bucket}), client.Close, nil
+	identifier := strings.TrimSuffix(parts[5], extension)
+	id, err := uuid.Parse(identifier)
+	return err == nil && id != uuid.Nil && id.String() == identifier
 }

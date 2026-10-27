@@ -13,7 +13,7 @@ func RegisterRoutes(api huma.API, handler *Handler) {
 		Method:      http.MethodPost,
 		Path:        "/login",
 		Summary:     "Masuk ke aplikasi",
-		Description: "Memvalidasi kredensial PostgreSQL lalu menerbitkan Firebase ID token atau local JWT sesuai AUTH_MODE. Local token berlaku satu jam tanpa refresh; login ulang setelah kedaluwarsa.",
+		Description: "Memvalidasi kredensial PostgreSQL lalu menerbitkan Firebase ID token dan refresh token.",
 		Tags:        []string{"Autentikasi"},
 		Security:    []map[string][]string{},
 		Errors: []int{

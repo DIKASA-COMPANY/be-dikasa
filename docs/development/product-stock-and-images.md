@@ -1,7 +1,7 @@
-# Local product images, stock and workbook exports
+# Firebase product images, stock and workbook exports
 
-These features work with the existing local-auth setup and PostgreSQL. Firebase
-is not required. Existing products remain untracked until a manager enables stock.
+Firebase Authentication, Firebase Storage, and PostgreSQL are required. Existing
+products remain untracked until a manager enables stock.
 
 ## Existing installation
 
@@ -13,22 +13,53 @@ environment. The development workspace's local database already has migration 00
 Configure `.env`:
 
 ```dotenv
-IMAGE_STORAGE_MODE=local
-LOCAL_IMAGE_DIRECTORY=uploads
-PUBLIC_BASE_URL=http://127.0.0.1:8081
+FIREBASE_PROJECT_ID=dikasa-project-id
+FIREBASE_WEB_API_KEY=replace-with-web-api-key
+FIREBASE_STORAGE_BUCKET=dikasa-project-id.firebasestorage.app
+GOOGLE_APPLICATION_CREDENTIALS=/secure/firebase-service-account.json
 ```
 
-Restart the backend after changing code or environment values. Files persist under
-the configured directory, which must be backed up alongside PostgreSQL. The default
-`uploads/` directory is ignored by Git. `PUBLIC_BASE_URL` is a trusted HTTP(S) origin,
-not a path or an incoming request header. Product images are public using random
-server-generated filenames. Upload, replacement and removal require manager access.
-Only PNG/JPEG up to 3 MiB and 24 megapixels are accepted; no directory listing or
-arbitrary filesystem path is exposed.
+Restart the backend after changing environment values. The backend validates PNG/JPEG
+content up to 3 MiB, 4096 px per side, and 16 megapixels, generates an object name, uploads to Firebase,
+and persists the returned download URL. Product responses expose `image_url`; profile
+responses expose `avatar_url`. Frontends render those URLs directly and never request
+image bytes from this API.
 
-`IMAGE_STORAGE_MODE=firebase` still selects the existing Firebase adapter. Changing
-providers does not copy existing files; keep old image hosting available until an
-explicit migration is performed. User-avatar storage is outside this increment.
+Objects use these prefixes:
+
+- `outlets/{outlet_id}/products/{product_id}/images/{uuid}.{ext}`
+- `outlets/{outlet_id}/users/{user_id}/avatar/{uuid}.{ext}`
+- `outlets/{outlet_id}/cash-sessions/{session_id}/proofs/{uuid}.{ext}`
+
+Every image type uses the same shared uploader and receives a Firebase download URL.
+PostgreSQL stores only that URL—never bytes, duplicate object names, tokens in separate
+columns, MIME metadata, or hashes. Product/avatar responses return their URL normally;
+cash-proof URLs require an authenticated same-outlet lookup.
+
+Migration `000016_store_only_firebase_image_urls` fails safely if it finds legacy local
+product/avatar URLs or cash-proof object keys. Upload those files to Firebase and update
+their URL columns before rerunning the migration; it never discards an unresolved file reference.
+
+## Upload and bucket decision
+
+Uploads stay backend-mediated rather than using signed upload URLs. The current 3 MiB
+limit is small, and the backend must inspect MIME, signature, dimensions, and decoded
+image content before accepting a reference. A direct signed upload would require a
+second finalize endpoint plus server-side object revalidation and orphan cleanup. Revisit
+signed/resumable uploads only if file sizes or upload traffic become large enough to make
+API bandwidth a demonstrated bottleneck.
+
+Use a separate Firebase project per environment, with its default bucket:
+
+- `dikasa-dev.firebasestorage.app`
+- `dikasa-staging.firebasestorage.app`
+- `dikasa-prod.firebasestorage.app`
+
+Do not mix environments in one bucket merely by adding a folder prefix. Firebase
+download URLs are bearer-style links: anyone with the URL can render the object until
+it is deleted or its token is rotated. Product and avatar URLs are returned in ordinary
+resources. Cash-proof URLs are disclosed only by the authorized proof endpoint and
+must still be treated as sensitive.
 
 ## API contract
 
@@ -37,8 +68,7 @@ the full schemas and `api/bruno/catalog/` for requests.
 
 | Method/path | Access and behavior |
 | --- | --- |
-| `POST /products`, `PATCH /products/{id}` | Manager; existing multipart `image` and `remove_image` fields now work in local mode |
-| `GET /product-images/{filename}` | Public; only generated, regular local product image files |
+| `POST /products`, `PATCH /products/{id}` | Manager; multipart `image` uploads to Firebase and the response returns `image_url` |
 | `GET /products/export.xlsx` | Manager; XLSX attachment for all matching catalog pages |
 | `POST /products/{id}/stock` | Manager; enable/disable tracking or update its threshold |
 | `POST /products/{id}/stock-adjustments` | Manager; change a tracked quantity with a reason |

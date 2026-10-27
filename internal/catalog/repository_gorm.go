@@ -104,7 +104,7 @@ func (repository *GORMRepository) UpdateProduct(ctx context.Context, value *Prod
 		result := transaction.Model(&Product{}).Where("id = ? AND outlet_id = ?", value.ID, value.OutletID).Updates(map[string]any{
 			"category_id": value.CategoryID, "name": value.Name, "price": value.Price, "online_selling_price": value.OnlineSellingPrice,
 			"cost_price": value.CostPrice, "online_cost_price": value.OnlineCostPrice, "stock_status": value.StockStatus,
-			"description": value.Description, "image_url": value.ImageURL, "image_object_name": value.ImageObjectName,
+			"description": value.Description, "image_url": value.ImageURL,
 			"is_highlighted": value.IsHighlighted, "sort_order": value.SortOrder, "is_active": value.IsActive,
 		})
 		if result.Error != nil {

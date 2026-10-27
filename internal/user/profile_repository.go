@@ -45,12 +45,11 @@ func (r *GORMRepository) PatchProfile(ctx context.Context, a *User, m ProfileMut
 			changes["personal_address"] = a.PersonalAddress
 		}
 		if m.Avatar != nil || (set("remove_avatar") && m.RemoveAvatar) {
-			same := (old == nil && current.AvatarObjectName == nil) || (old != nil && current.AvatarObjectName != nil && *old == *current.AvatarObjectName)
+			same := (old == nil && current.AvatarURL == nil) || (old != nil && current.AvatarURL != nil && *old == *current.AvatarURL)
 			if !same {
 				return ErrConflict
 			}
 			changes["avatar_url"] = a.AvatarURL
-			changes["avatar_object_name"] = a.AvatarObjectName
 		}
 		if len(changes) > 0 {
 			if e := normalizeUserWriteError(tx.Model(&User{}).Where("id = ?", a.ID).Updates(changes).Error); e != nil {

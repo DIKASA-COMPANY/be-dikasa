@@ -17,24 +17,21 @@ type MovementActivity struct {
 
 // MovementRecord is an immutable manual drawer entry.
 type MovementRecord struct {
-	ID               string    `json:"id" gorm:"type:uuid;primaryKey"`
-	OutletID         string    `json:"outlet_id" gorm:"type:uuid"`
-	CashSessionID    string    `json:"session_id" gorm:"type:uuid"`
-	RequestID        string    `json:"request_id" gorm:"type:uuid"`
-	CreatedBy        string    `json:"created_by" gorm:"type:uuid"`
-	CreatedByName    string    `json:"created_by_name"`
-	CreatedAt        time.Time `json:"created_at"`
-	Kind             string    `json:"kind"`
-	Amount           int64     `json:"amount"`
-	Name             string    `json:"name"`
-	Reason           string    `json:"reason"`
-	ReversesID       *string   `json:"reverses_id" gorm:"type:uuid"`
-	PayloadHash      string    `json:"-"`
-	ProofObjectKey   *string   `json:"-"`
-	ProofContentType *string   `json:"-"`
-	ProofSHA256      *string   `json:"-"`
-	ProofSize        *int64    `json:"-"`
-	HasProof         bool      `json:"has_proof" gorm:"-"`
+	ID            string    `json:"id" gorm:"type:uuid;primaryKey"`
+	OutletID      string    `json:"outlet_id" gorm:"type:uuid"`
+	CashSessionID string    `json:"session_id" gorm:"type:uuid"`
+	RequestID     string    `json:"request_id" gorm:"type:uuid"`
+	CreatedBy     string    `json:"created_by" gorm:"type:uuid"`
+	CreatedByName string    `json:"created_by_name"`
+	CreatedAt     time.Time `json:"created_at"`
+	Kind          string    `json:"kind"`
+	Amount        int64     `json:"amount"`
+	Name          string    `json:"name"`
+	Reason        string    `json:"reason"`
+	ReversesID    *string   `json:"reverses_id" gorm:"type:uuid"`
+	PayloadHash   string    `json:"-"`
+	ProofURL      *string   `json:"-" gorm:"column:proof_url"`
+	HasProof      bool      `json:"has_proof" gorm:"-"`
 }
 
 // TableName sets the immutable cash ledger table.

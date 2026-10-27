@@ -19,3 +19,8 @@ assert {
   res.status: eq 200
   res.body.data.image_url: isNotEmpty
 }
+tests {
+  test("product image is a Firebase download URL", function () {
+    expect(res.body.data.image_url).to.match(/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\//);
+  });
+}

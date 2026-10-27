@@ -5,6 +5,7 @@ import (
 	"be-dikasa/internal/catalog"
 	"be-dikasa/internal/payment"
 	"be-dikasa/internal/refund"
+	"be-dikasa/internal/shared/firebaseimage"
 	"be-dikasa/internal/shared/imagefile"
 	"be-dikasa/internal/user"
 	"bytes"
@@ -15,15 +16,58 @@ import (
 	"github.com/google/uuid"
 	"image"
 	"image/png"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
-	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+type integrationProofObject struct {
+	contentType string
+	content     []byte
+}
+
+type integrationProofBucket struct {
+	mu      sync.Mutex
+	objects map[string]integrationProofObject
+}
+
+func newIntegrationProofBucket() *integrationProofBucket {
+	return &integrationProofBucket{objects: map[string]integrationProofObject{}}
+}
+
+func (bucket *integrationProofBucket) Put(_ context.Context, name string, source io.Reader, contentType string, _ map[string]string) error {
+	content, err := io.ReadAll(source)
+	if err != nil {
+		return err
+	}
+	bucket.mu.Lock()
+	bucket.objects[name] = integrationProofObject{contentType: contentType, content: content}
+	bucket.mu.Unlock()
+	return nil
+}
+
+func (bucket *integrationProofBucket) Read(_ context.Context, name string) (io.ReadCloser, string, int64, error) {
+	bucket.mu.Lock()
+	object, ok := bucket.objects[name]
+	bucket.mu.Unlock()
+	if !ok {
+		return nil, "", 0, errors.New("object not found")
+	}
+	return io.NopCloser(bytes.NewReader(object.content)), object.contentType, int64(len(object.content)), nil
+}
+
+func (bucket *integrationProofBucket) Delete(_ context.Context, name string) error {
+	bucket.mu.Lock()
+	delete(bucket.objects, name)
+	bucket.mu.Unlock()
+	return nil
+}
 
 func TestMovementPostgresConcurrentOutflowReplayAndClose(t *testing.T) {
 	db := closingDB(t)
@@ -116,15 +160,11 @@ func TestMovementPrivateProofAndActorPermissions(t *testing.T) {
 	db.Preload("Role").Where("username='admin'").First(&a)
 	sid := uuid.NewString()
 	db.Exec("INSERT INTO cash_sessions(id,outlet_id,user_id,opening_cash,status) VALUES(?,?,?,100000,'open')", sid, *a.OutletID, a.ID)
-	store, e := cash.NewLocalMovementProofStore(t.TempDir())
-	if e != nil {
-		t.Fatal(e)
-	}
-	defer store.Close()
+	store := cash.NewFirebaseMovementProofStore(firebaseimage.NewUploader("test.firebasestorage.app", newIntegrationProofBucket()))
 	svc := cash.NewMovementService(cash.NewMovementRepository(db), user.NewGORMRepository(db), store, nil)
 	var b bytes.Buffer
 	png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 2, 2)))
-	v, e := imagefile.Validate(imagefile.Upload{Reader: bytes.NewReader(b.Bytes()), Size: int64(b.Len()), Filename: "evidence.png", ContentType: "image/png"}, imagefile.AvatarPolicy)
+	v, e := imagefile.Validate(imagefile.Upload{Reader: bytes.NewReader(b.Bytes()), Size: int64(b.Len()), Filename: "evidence.png", ContentType: "image/png"}, imagefile.StandardPolicy)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -180,8 +220,11 @@ func TestMovementPrivateProofAndActorPermissions(t *testing.T) {
 	}
 
 	w := api.DoCtx(authctx, "GET", path)
-	if w.Code != 200 || !bytes.Equal(w.Body.Bytes(), b.Bytes()) || w.Header().Get("Cache-Control") != "private, no-store" {
-		t.Fatal("private binary proof", w.Code, w.Body.String())
+	var proofResponse struct {
+		Data cash.ProofLink `json:"data"`
+	}
+	if e = json.Unmarshal(w.Body.Bytes(), &proofResponse); w.Code != 200 || e != nil || !strings.HasPrefix(proofResponse.Data.URL, "https://firebasestorage.googleapis.com/v0/b/") {
+		t.Fatal("Firebase proof URL", w.Code, w.Body.String(), e)
 	}
 	var role user.Role
 	db.Where("name='cashier'").First(&role)
@@ -278,15 +321,11 @@ func TestMovementRollbackRemovesUnreferencedProof(t *testing.T) {
 	db.Preload("Role").Where("username='admin'").First(&a)
 	sid := uuid.NewString()
 	db.Exec("INSERT INTO cash_sessions(id,outlet_id,user_id,opening_cash,status) VALUES(?,?,?,100000,'open')", sid, *a.OutletID, a.ID)
-	dir := t.TempDir()
-	store, e := cash.NewLocalMovementProofStore(dir)
-	if e != nil {
-		t.Fatal(e)
-	}
-	defer store.Close()
+	bucket := newIntegrationProofBucket()
+	store := cash.NewFirebaseMovementProofStore(firebaseimage.NewUploader("test.firebasestorage.app", bucket))
 	var b bytes.Buffer
 	png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 2, 2)))
-	v, e := imagefile.Validate(imagefile.Upload{Reader: bytes.NewReader(b.Bytes()), Size: int64(b.Len()), Filename: "p.png", ContentType: "image/png"}, imagefile.AvatarPolicy)
+	v, e := imagefile.Validate(imagefile.Upload{Reader: bytes.NewReader(b.Bytes()), Size: int64(b.Len()), Filename: "p.png", ContentType: "image/png"}, imagefile.StandardPolicy)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -300,9 +339,11 @@ func TestMovementRollbackRemovesUnreferencedProof(t *testing.T) {
 	}
 	var count int64
 	db.Model(&cash.MovementRecord{}).Count(&count)
-	files, e := os.ReadDir(dir)
-	if e != nil || count != 0 || len(files) != 0 {
-		t.Fatal("rollback leaked row or proof", count, len(files), e)
+	bucket.mu.Lock()
+	objectCount := len(bucket.objects)
+	bucket.mu.Unlock()
+	if count != 0 || objectCount != 0 {
+		t.Fatal("rollback leaked row or proof", count, objectCount)
 	}
 }
 

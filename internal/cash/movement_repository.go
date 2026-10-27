@@ -26,7 +26,7 @@ func movementRow(tx *gorm.DB, out, sid, id string) (MovementRecord, error) {
 	if errors.Is(e, gorm.ErrRecordNotFound) {
 		e = ErrNotFound
 	}
-	m.HasProof = m.ProofObjectKey != nil
+	m.HasProof = m.ProofURL != nil
 	return m, e
 }
 
@@ -44,7 +44,7 @@ func (r *MovementRepository) execute(ctx context.Context, actor, out, sid, rever
 			if old.PayloadHash != hash || old.CreatedBy != actor || old.CashSessionID != sid {
 				return ErrMovementRequestUsed
 			}
-			old.HasProof = old.ProofObjectKey != nil
+			old.HasProof = old.ProofURL != nil
 			result = old
 			return nil
 		}
@@ -123,12 +123,8 @@ func (r *MovementRepository) execute(ctx context.Context, actor, out, sid, rever
 			if e != nil {
 				return e
 			}
-			uploaded = o.Key
-			m.ProofObjectKey = &o.Key
-			m.ProofContentType = &c.Proof.ContentType
-			m.ProofSHA256 = &c.Proof.SHA256
-			n := int64(len(c.Proof.Bytes))
-			m.ProofSize = &n
+			uploaded = o.URL
+			m.ProofURL = &o.URL
 			m.HasProof = true
 		}
 		if e = tx.Create(&m).Error; e != nil {
@@ -141,7 +137,7 @@ func (r *MovementRepository) execute(ctx context.Context, actor, out, sid, rever
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 		defer cancel()
 		var n int64
-		if e := r.db.WithContext(cleanup).Model(&MovementRecord{}).Where("proof_object_key=?", uploaded).Count(&n).Error; e == nil && n == 0 {
+		if e := r.db.WithContext(cleanup).Model(&MovementRecord{}).Where("proof_url=?", uploaded).Count(&n).Error; e == nil && n == 0 {
 			_ = proof.Delete(cleanup, uploaded)
 		}
 	}
@@ -179,6 +175,6 @@ func (r *MovementRepository) byRequest(ctx context.Context, out, actor, sid, id 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		err = ErrNotFound
 	}
-	m.HasProof = m.ProofObjectKey != nil
+	m.HasProof = m.ProofURL != nil
 	return
 }

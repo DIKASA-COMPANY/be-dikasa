@@ -809,7 +809,7 @@ components:
       additionalProperties: false
       properties:
         access_token:
-          description: "Bearer token: Firebase ID token atau local JWT sesuai AUTH_MODE"
+          description: Firebase ID token untuk Authorization Bearer
           type: string
         expires_in:
           examples:
@@ -817,10 +817,10 @@ components:
           format: int64
           type: integer
         firebase_uid:
-          description: UUID user PostgreSQL pada kedua mode; nama field dipertahankan untuk kompatibilitas
+          description: UUID user PostgreSQL yang dipakai sebagai Firebase UID
           type: string
         refresh_token:
-          description: Firebase refresh token; kosong pada local mode (login ulang setelah satu jam)
+          description: Firebase refresh token
           type: string
         token_type:
           enum:
@@ -980,6 +980,14 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/MovementRecord"
+      required:
+        - data
+      type: object
+    MovementProofOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/ProofLink"
       required:
         - data
       type: object
@@ -1407,6 +1415,7 @@ components:
           format: uuid
           type: string
         image_url:
+          description: Firebase Storage download URL; render directly and do not proxy through the API
           format: uri
           type: string
         is_active:
@@ -1619,6 +1628,7 @@ components:
       additionalProperties: false
       properties:
         avatar_url:
+          description: Firebase Storage download URL for direct client rendering
           format: uri
           type: string
         can_change_password:
@@ -1684,6 +1694,16 @@ components:
           $ref: "#/components/schemas/Profile"
       required:
         - data
+      type: object
+    ProofLink:
+      additionalProperties: false
+      properties:
+        url:
+          description: Firebase Storage download URL for direct client rendering
+          format: uri
+          type: string
+      required:
+        - url
       type: object
     ReceiptItem:
       additionalProperties: false
@@ -3058,7 +3078,7 @@ components:
   securitySchemes:
     firebaseBearer:
       bearerFormat: JWT
-      description: "Gunakan access_token dari /login: Firebase ID token atau local JWT sesuai AUTH_MODE."
+      description: Gunakan Firebase ID token pada access_token dari /login.
       scheme: bearer
       type: http
 info:
@@ -3066,56 +3086,6 @@ info:
   version: 1.0.0
 openapi: 3.1.0
 paths:
-  /avatar-images/{filename}:
-    get:
-      description: Hanya PNG/JPEG dengan nama yang dibuat server. Tidak ada directory listing. Aktif ketika IMAGE_STORAGE_MODE=local.
-      operationId: get-avatar-image
-      parameters:
-        - in: path
-          name: filename
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          content:
-            image/jpeg:
-              schema:
-                contentMediaType: application/octet-stream
-                format: binary
-                type: string
-            image/png:
-              schema:
-                contentMediaType: application/octet-stream
-                format: binary
-                type: string
-          description: Gambar produk
-        "404":
-          description: Data tidak ditemukan.
-      security:
-        - {}
-      summary: Foto profil lokal publik dengan nama acak
-      tags:
-        - Katalog
-    head:
-      description: Hanya PNG/JPEG dengan nama yang dibuat server. Tidak ada directory listing. Aktif ketika IMAGE_STORAGE_MODE=local.
-      operationId: head-avatar-image
-      parameters:
-        - in: path
-          name: filename
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Metadata foto profil lokal
-        "404":
-          description: Data tidak ditemukan.
-      security:
-        - {}
-      summary: Foto profil lokal publik dengan nama acak
-      tags:
-        - Katalog
   /cash-sessions:
     get:
       operationId: list-cash-sessions
@@ -3816,7 +3786,7 @@ paths:
         - Kas Kasir
   /cash-sessions/{session_id}/movements/{movement_id}/proof:
     get:
-      description: Wajib autentikasi dan outlet cocok. Byte PNG/JPEG asli; private,no-store. Tidak ada tautan publik atau token dalam URL.
+      description: Wajib autentikasi dan outlet cocok. Mengembalikan Firebase Storage download URL agar frontend merender gambar langsung tanpa proxy file melalui API.
       operationId: cash-movement-proof
       parameters:
         - in: path
@@ -3834,27 +3804,10 @@ paths:
       responses:
         "200":
           content:
-            image/jpeg:
+            application/json:
               schema:
-                contentMediaType: application/octet-stream
-                format: binary
-                type: string
-            image/png:
-              schema:
-                contentMediaType: application/octet-stream
-                format: binary
-                type: string
-          description: Bukti asli yang telah diotorisasi
-          headers:
-            Cache-Control:
-              schema:
-                type: string
-            Content-Type:
-              schema:
-                type: string
-            X-Content-Type-Options:
-              schema:
-                type: string
+                $ref: "#/components/schemas/MovementProofOutputBody"
+          description: OK
         "401":
           content:
             application/json:
@@ -3909,7 +3862,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusError"
           description: Layanan sementara tidak tersedia.
-      summary: Bukti kas privat
+      summary: URL bukti kas
       tags:
         - Kas Kasir
   /cash-sessions/{session_id}/movements/{movement_id}/reverse:
@@ -4101,7 +4054,7 @@ paths:
         - Sistem
   /login:
     post:
-      description: Memvalidasi kredensial PostgreSQL lalu menerbitkan Firebase ID token atau local JWT sesuai AUTH_MODE. Local token berlaku satu jam tanpa refresh; login ulang setelah kedaluwarsa.
+      description: Memvalidasi kredensial PostgreSQL lalu menerbitkan Firebase ID token dan refresh token.
       operationId: login
       requestBody:
         content:
@@ -4558,37 +4511,6 @@ paths:
       summary: Mengambil persentase pajak pembayaran
       tags:
         - Pembayaran
-  /product-images/{filename}:
-    get:
-      description: Hanya PNG/JPEG dengan nama yang dibuat server. Tidak ada directory listing. Aktif ketika IMAGE_STORAGE_MODE=local.
-      operationId: get-product-image
-      parameters:
-        - in: path
-          name: filename
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          content:
-            image/jpeg:
-              schema:
-                contentMediaType: application/octet-stream
-                format: binary
-                type: string
-            image/png:
-              schema:
-                contentMediaType: application/octet-stream
-                format: binary
-                type: string
-          description: Gambar produk
-        "404":
-          description: Data tidak ditemukan.
-      security:
-        - {}
-      summary: Gambar produk lokal publik dengan nama acak
-      tags:
-        - Katalog
   /product-types:
     get:
       operationId: list-product-types
@@ -7675,7 +7597,7 @@ paths:
         - Refund
   /users/me:
     get:
-      description: Mengambil profil PostgreSQL berdasarkan identitas token lokal atau Firebase.
+      description: Mengambil profil PostgreSQL berdasarkan identitas Firebase ID token.
       operationId: get-current-user
       responses:
         "200":
@@ -7845,7 +7767,7 @@ paths:
         - User
   /users/me/password:
     patch:
-      description: Memverifikasi password lama lalu menyimpan bcrypt hash password baru (8–72 byte). Hanya tersedia bila can_change_password=true (AUTH_MODE=local). Tidak mencabut JWT yang sudah terbit. Respons hilang mungkin berarti perubahan tersimpan; jangan retry otomatis.
+      description: Memverifikasi password lama lalu menyimpan bcrypt hash password PostgreSQL baru (8–72 byte). Tidak mencabut Firebase ID token yang sudah terbit. Respons hilang mungkin berarti perubahan tersimpan; jangan retry otomatis.
       operationId: change-current-user-password
       requestBody:
         content:

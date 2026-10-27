@@ -149,31 +149,22 @@ func (s *MovementService) Activity(ctx context.Context, actor, sid string, page,
 	return s.repo.activity(ctx, a, sid, page, size, s.proof != nil)
 }
 
-// ProofBytes contains authorized original evidence; object keys never leave the server.
-type ProofBytes struct {
-	Bytes       []byte
-	ContentType string
+// ProofLink contains an authorized Firebase download URL.
+type ProofLink struct {
+	URL string `json:"url" format:"uri" doc:"Firebase Storage download URL for direct client rendering"`
 }
 
-// Proof checks outlet scope before any filesystem access.
-func (s *MovementService) Proof(ctx context.Context, actor, sid, id string) (ProofBytes, error) {
+// Proof checks outlet scope before returning the persisted Firebase URL.
+func (s *MovementService) Proof(ctx context.Context, actor, sid, id string) (ProofLink, error) {
 	d, e := s.Detail(ctx, actor, sid, id)
 	if e != nil {
-		return ProofBytes{}, e
+		return ProofLink{}, e
 	}
 	if !d.Movement.HasProof {
-		return ProofBytes{}, ErrNotFound
+		return ProofLink{}, ErrNotFound
 	}
-	if s.proof == nil {
-		return ProofBytes{}, ErrProofDisabled
+	if d.Movement.ProofURL == nil || *d.Movement.ProofURL == "" {
+		return ProofLink{}, ErrProofStorage
 	}
-	b, m, e := s.proof.Read(ctx, *d.Movement.ProofObjectKey)
-	if e != nil {
-		return ProofBytes{}, ErrProofStorage
-	}
-	h := sha256.Sum256(b)
-	if d.Movement.ProofSHA256 == nil || hex.EncodeToString(h[:]) != *d.Movement.ProofSHA256 {
-		return ProofBytes{}, ErrProofStorage
-	}
-	return ProofBytes{b, m}, nil
+	return ProofLink{URL: *d.Movement.ProofURL}, nil
 }

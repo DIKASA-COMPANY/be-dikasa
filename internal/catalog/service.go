@@ -125,9 +125,9 @@ func (service *Service) CreateProduct(ctx context.Context, userID string, mutati
 		if saveErr != nil {
 			return nil, saveErr
 		}
-		product.ImageURL, product.ImageObjectName = &stored.URL, &stored.ObjectName
+		product.ImageURL = &stored.URL
 		if err = service.repository.CreateProduct(ctx, product); err != nil {
-			_ = service.images.Delete(ctx, stored.ObjectName)
+			_ = service.images.Delete(ctx, stored.URL)
 			return nil, err
 		}
 		return product, nil
@@ -166,16 +166,16 @@ func (service *Service) UpdateProduct(ctx context.Context, userID, productID str
 	if !category.IsActive || (mutation.ProductType != "" && !strings.EqualFold(category.ProductType.Code, mutation.ProductType)) {
 		return nil, ErrCategoryMismatch
 	}
-	oldObject := product.ImageObjectName
+	oldURL := product.ImageURL
 	var uploaded *StoredImage
 	if mutation.Image != nil {
 		uploaded, err = service.images.Save(ctx, outletID, product.ID, mutation.Image)
 		if err != nil {
 			return nil, err
 		}
-		product.ImageURL, product.ImageObjectName = &uploaded.URL, &uploaded.ObjectName
+		product.ImageURL = &uploaded.URL
 	} else if isSet("remove_image") && mutation.RemoveImage {
-		product.ImageURL, product.ImageObjectName = nil, nil
+		product.ImageURL = nil
 	}
 	if isSet("name") {
 		product.Name = strings.TrimSpace(mutation.Name)
@@ -200,7 +200,7 @@ func (service *Service) UpdateProduct(ctx context.Context, userID, productID str
 		product.Variants, err = productVariants(outletID, product.ID, mutation.Variations)
 		if err != nil {
 			if uploaded != nil {
-				_ = service.images.Delete(ctx, uploaded.ObjectName)
+				_ = service.images.Delete(ctx, uploaded.URL)
 			}
 			return nil, err
 		}
@@ -220,18 +220,18 @@ func (service *Service) UpdateProduct(ctx context.Context, userID, productID str
 	}
 	if product.Name == "" || product.Price < 0 || !validStockStatus(product.StockStatus) || invalidOptionalPrice(product.OnlineSellingPrice, product.CostPrice, product.OnlineCostPrice) {
 		if uploaded != nil {
-			_ = service.images.Delete(ctx, uploaded.ObjectName)
+			_ = service.images.Delete(ctx, uploaded.URL)
 		}
 		return nil, ErrValidation
 	}
 	if err = service.repository.UpdateProduct(ctx, product); err != nil {
 		if uploaded != nil {
-			_ = service.images.Delete(ctx, uploaded.ObjectName)
+			_ = service.images.Delete(ctx, uploaded.URL)
 		}
 		return nil, err
 	}
-	if oldObject != nil && (uploaded != nil || (isSet("remove_image") && mutation.RemoveImage)) {
-		_ = service.images.Delete(ctx, *oldObject)
+	if oldURL != nil && (uploaded != nil || (isSet("remove_image") && mutation.RemoveImage)) {
+		_ = service.images.Delete(ctx, *oldURL)
 	}
 	return product, nil
 }

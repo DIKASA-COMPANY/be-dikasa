@@ -27,9 +27,8 @@ assert {
 }
 
 docs {
-  Select local-auth after running `go run ./cmd/seed-local` to test without Firebase.
-  Local access tokens expire after one hour; refresh_token is empty. Log in again.
-  The existing local environment continues to support Firebase accounts.
+  PostgreSQL credentials are validated before Firebase issues the ID and refresh tokens.
+  Local JWT authentication is not supported.
 }
 
 script:post-response {
