@@ -19,18 +19,18 @@ type LoginInput struct {
 	Body LoginRequest
 }
 
-// LoginResponse is the session envelope for both Firebase and local authentication.
+// LoginResponse is the Firebase session envelope returned after credential validation.
 type LoginResponse struct {
 	Data LoginResponseData `json:"data"`
 }
 
-// LoginResponseData contains the Bearer session issued by the configured auth provider.
+// LoginResponseData contains the Bearer session issued by Firebase Authentication.
 type LoginResponseData struct {
-	AccessToken  string `json:"access_token" doc:"Bearer token: Firebase ID token atau local JWT sesuai AUTH_MODE"`
-	RefreshToken string `json:"refresh_token" doc:"Firebase refresh token; kosong pada local mode (login ulang setelah satu jam)"`
+	AccessToken  string `json:"access_token" doc:"Firebase ID token untuk Authorization Bearer"`
+	RefreshToken string `json:"refresh_token" doc:"Firebase refresh token"`
 	TokenType    string `json:"token_type" enum:"Bearer" example:"Bearer"`
 	ExpiresIn    int    `json:"expires_in" example:"3600"`
-	FirebaseUID  string `json:"firebase_uid" doc:"UUID user PostgreSQL pada kedua mode; nama field dipertahankan untuk kompatibilitas"`
+	FirebaseUID  string `json:"firebase_uid" doc:"UUID user PostgreSQL yang dipakai sebagai Firebase UID"`
 }
 
 // LoginOutput membungkus respons sukses endpoint login untuk Huma.

@@ -1,8 +1,6 @@
 # Cash-session reconciliation
 
-Implemented POS-07; also see the workspace CASH_CLOSING_IMPLEMENTATION_LOG_2026-10-24.md
-for actual machine changes, verification and retained data. Uses existing local
-JWT/Firebase selection; no additional service or dependency.
+Implemented POS-07 using Firebase Authentication, Firebase Storage, and PostgreSQL.
 
 ## Cash calculation and audit
 
@@ -81,14 +79,14 @@ cash. Totals/hash include every permanent event; a zero-net correction still sta
 an earlier preview. Historical frozen JSON is preserved; absent movement totals=0.
 
 Use the cash-movements Bruno folder and generated OpenAPI for activity, multipart
-create, detail, actor-bound by-request recovery, reversal and private proof routes.
+create, detail, actor-bound by-request recovery, reversal and proof-URL routes.
 All are under /dikasa/v1/cash-sessions/{session_id}. Exact UUID/body replay returns
 original success even after closure. A missing lookup is not proof failure.
 
-CASH_PROOF_DIRECTORY configures private local evidence; local image mode defaults
-to LOCAL_IMAGE_DIRECTORY/cash-proofs. Back up that directory and PostgreSQL together.
-No public product/avatar route serves proofs. Reads require authenticated outlet
-access and return private,no-store original PNG/JPEG bytes. Three MiB,4096 px/16MP
-limits apply. No Firebase private-proof adapter or automatic media migration is
-included. Uncertain DB commits may leave safe orphan files if references cannot
-be checked; do not delete files that may belong to a committed movement.
+Cash proof evidence uses the same shared Firebase uploader as product and avatar images,
+under `outlets/{outlet_id}/cash-sessions/{session_id}/proofs/{uuid}.{ext}`. PostgreSQL
+stores only `proof_url`. The authenticated same-outlet proof endpoint returns JSON with
+that URL, and the frontend renders Firebase directly rather than proxying bytes through
+the API. Three MiB, 4096 px/16 MP limits apply. The URL is a bearer link and must remain
+confidential. Uncertain DB commits may leave a safe orphan object if the persisted URL
+cannot be confirmed.

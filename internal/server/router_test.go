@@ -488,6 +488,21 @@ func TestCommittedOpenAPIMatchesServerOutput(t *testing.T) {
 	}
 }
 
+func TestOpenAPIDoesNotExposeLocalImageFileEndpoints(t *testing.T) {
+	router := newTestRouter()
+	request := httptest.NewRequest(http.MethodGet, "/dikasa/v1/openapi.yaml", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("openapi status: %d", response.Code)
+	}
+	for _, path := range []string{"/product-images/{filename}", "/avatar-images/{filename}"} {
+		if strings.Contains(response.Body.String(), path) {
+			t.Fatalf("Firebase-only API must return download URLs, not expose local file endpoint %s", path)
+		}
+	}
+}
+
 func TestRouterRejectsOversizedProductMultipartBeforeParsing(t *testing.T) {
 	router := newTestRouter()
 	body := bytes.NewReader(make([]byte, 4*1024*1024+1))

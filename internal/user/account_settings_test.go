@@ -80,11 +80,11 @@ func TestUpdateProfileEditsOnlyProvidedFields(t *testing.T) {
 func TestUpdateProfileCleansAvatarWhenDatabaseFails(t *testing.T) {
 	outletID := "outlet-a"
 	repository := &settingsRepository{account: &User{ID: "user-a", OutletID: &outletID, FirstName: "Jane", PhoneNumber: "08123456"}, updateErr: errors.New("database unavailable")}
-	avatars := &fakeAvatarStore{stored: AvatarImage{URL: "https://new", ObjectName: "new-avatar"}}
+	avatars := &fakeAvatarStore{stored: AvatarImage{URL: "https://new"}}
 	service := NewService(repository, WithCredentialHasher(plainCredentialHasher{}), WithAvatarStore(avatars))
 
 	_, err := service.UpdateProfile(context.Background(), "user-a", ProfileMutation{Fields: map[string]bool{}, Avatar: &AvatarUpload{Reader: bytes.NewReader([]byte("image")), Size: 5}})
-	if err == nil || len(avatars.deleted) != 1 || avatars.deleted[0] != "new-avatar" {
+	if err == nil || len(avatars.deleted) != 1 || avatars.deleted[0] != "https://new" {
 		t.Fatalf("expected avatar cleanup, err=%v deleted=%v", err, avatars.deleted)
 	}
 }
@@ -118,9 +118,9 @@ func TestChangePasswordVerifiesCurrentAndRejectsReuse(t *testing.T) {
 
 func TestUncertainProfileCommitDoesNotDeleteReferencedUpload(t *testing.T) {
 	out := "outlet"
-	object := "new-avatar"
-	repo := &settingsRepository{account: &User{ID: "a", OutletID: &out, FirstName: "Jane", PhoneNumber: "0812345678", AvatarObjectName: &object}, updateErr: errors.New("commit reply lost")}
-	store := &fakeAvatarStore{stored: AvatarImage{URL: "https://new", ObjectName: object}}
+	downloadURL := "https://new"
+	repo := &settingsRepository{account: &User{ID: "a", OutletID: &out, FirstName: "Jane", PhoneNumber: "0812345678", AvatarURL: &downloadURL}, updateErr: errors.New("commit reply lost")}
+	store := &fakeAvatarStore{stored: AvatarImage{URL: downloadURL}}
 	svc := NewService(repo, WithAvatarStore(store))
 	_, err := svc.UpdateProfile(context.Background(), "a", ProfileMutation{Fields: map[string]bool{}, Avatar: &AvatarUpload{Reader: bytes.NewReader([]byte("image")), Size: 5}})
 	if err == nil || len(store.deleted) != 0 {

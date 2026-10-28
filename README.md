@@ -1,18 +1,10 @@
 # Dikasa Backend
 
-> Local two-repository workspace records: [Changelog](../CHANGELOG.md),
-> [Feature history](../FEATURE_HISTORY.md), [Backlog](../BACKLOG.md).
-> These parent-folder documents should be shared alongside both checkouts.
-
-Product photo uploads can now use persistent local storage without Firebase.
+Product and avatar uploads use Firebase Storage exclusively. The backend validates
+the image, uploads it, and returns a Firebase download URL for clients to render.
 Shared stock tracking, manager inventory adjustments/history, variation-aware
 checkout validation and real XLSX exports are available. See
 [product images and stock setup](docs/development/product-stock-and-images.md).
-
-For local development **without Firebase or SMTP**, follow
-[Local authentication setup](docs/development/local-auth.md). It uses PostgreSQL
-passwords, one-hour signed tokens and an explicit development seed command;
-Firebase remains available through `AUTH_MODE=firebase`.
 
 Dikasa Backend is a Go API for restaurant operations. The current implementation
 provides business-owner registration with email OTP verification, PostgreSQL
@@ -39,7 +31,7 @@ opening-cash sessions, outlet order types, and generated OpenAPI documentation.
 - Huma for typed HTTP operations and OpenAPI generation
 - GORM with PostgreSQL
 - Firebase Authentication for ID and refresh tokens
-- Firebase Storage for optional product images (staged behind a runtime mode)
+- Firebase Storage for every uploaded product, avatar, and cash-proof image
 - SMTP for registration OTP delivery
 - `go-playground/validator` for request validation
 - Bruno for manual API testing
@@ -47,8 +39,9 @@ opening-cash sessions, outlet order types, and generated OpenAPI documentation.
 
 ## How authentication works
 
-PostgreSQL is the source of truth for users, business data, and password hashes.
-Firebase does not store Dikasa business data or passwords.
+PostgreSQL is the primary database and source of truth for users, business data,
+password hashes, and Firebase image URLs. Firebase is used only for Authentication
+tokens and image object storage; it does not replace PostgreSQL business persistence.
 
 The login flow is:
 
@@ -157,7 +150,6 @@ $env:PORT = "8080"
 $env:DATABASE_URL = "postgres://dikasa:password@localhost:5432/dikasa?sslmode=disable"
 $env:FIREBASE_PROJECT_ID = "your-firebase-project-id"
 $env:FIREBASE_WEB_API_KEY = "your-firebase-web-api-key"
-$env:IMAGE_STORAGE_MODE = "disabled"
 $env:FIREBASE_STORAGE_BUCKET = "your-firebase-project-id.firebasestorage.app"
 $env:GOOGLE_APPLICATION_CREDENTIALS = "C:\secure\firebase-service-account.json"
 $env:OTP_SECRET = "replace-with-a-random-secret-of-at-least-32-characters"
@@ -175,7 +167,6 @@ export PORT='8080'
 export DATABASE_URL='postgres://dikasa:password@localhost:5432/dikasa?sslmode=disable'
 export FIREBASE_PROJECT_ID='your-firebase-project-id'
 export FIREBASE_WEB_API_KEY='your-firebase-web-api-key'
-export IMAGE_STORAGE_MODE='disabled'
 export FIREBASE_STORAGE_BUCKET='your-firebase-project-id.firebasestorage.app'
 export GOOGLE_APPLICATION_CREDENTIALS='/secure/firebase-service-account.json'
 export OTP_SECRET='replace-with-a-random-secret-of-at-least-32-characters'
@@ -216,12 +207,10 @@ hashes. OTP values are stored as HMAC-SHA256 hashes and are never persisted as
 plaintext. Opening cash is stored as a whole-Rupiah integer per outlet cash
 session, with at most one open session per outlet.
 
-`IMAGE_STORAGE_MODE=disabled` is the safe default: products without images and
-text-only profile edits remain available, while image uploads return HTTP `503`. Set it to `firebase` only
-after the bucket, Blaze billing, and Application Default Credentials are ready.
-Images are limited to 3 MiB and validated as real PNG/JPEG content.
-The same storage mode applies to optional profile avatars. PINs use six digits,
-and both PINs and passwords are persisted only as bcrypt hashes.
+Firebase Storage is mandatory at startup. Images are limited to 3 MiB and validated
+as real PNG/JPEG content before upload. Product and profile responses return Firebase
+download URLs; frontends render those URLs directly. PINs use six digits, and both
+PINs and passwords are persisted only as bcrypt hashes.
 
 ## Running the API
 
@@ -505,34 +494,34 @@ Four sales reports and XLSX: [Reporting guide](docs/development/sales-reports.md
 
 ## Account settings (24 October 2026)
 
-The cashier menu's **Pengaturan Akun** supports self-profile details, local profile
-photos, PIN setup/change and local-auth password changes. Restart the backend and
+The cashier menu's **Pengaturan Akun** supports self-profile details, Firebase profile
+photos, PIN setup/change and PostgreSQL password changes. Restart the backend and
 Flutter after updating. Migration000014 (nullable personal address) is already
 applied in this workspace's local database. Fresh installs must also apply
 `migrations/000014_add_user_personal_address.up.sql` in the backend after000013.
 
-Photos use the configured `LOCAL_IMAGE_DIRECTORY/avatars` in local storage mode.
-Back up those files; changing to Firebase does not automatically copy old media.
-Password changes require `can_change_password=true`, do not revoke existing JWTs,
-and do not manage Firebase passwords. See the complete [account implementation
-log](../ACCOUNT_SETTINGS_IMPLEMENTATION_LOG_2026-10-24.md) for contracts, tests,
-configuration, restart steps and limitations.
+Photos are stored under `outlets/{outlet_id}/users/{user_id}/avatar/` in the configured
+Firebase bucket. Password changes update the PostgreSQL credential used by `/login`
+and do not revoke Firebase tokens already issued.
 
 
 ## Cash-in/out and till activity (24 October2026)
 
 Restart the backend and Flutter, then choose **Menu → Kas Kasir / Uang Masuk-Keluar**.
 The opening cashier or manager may record movements; authenticated outlet staff
-can read history. Optional evidence is private local storage, defaulting to
-`LOCAL_IMAGE_DIRECTORY/cash-proofs` in local image mode; use `CASH_PROOF_DIRECTORY`
-to configure it explicitly. Keep files with the database backup.
+can read history. Optional evidence uses the same Firebase upload mechanism as product
+and avatar images. PostgreSQL stores only the resulting URL; authorized users obtain
+that URL through the protected proof endpoint and the frontend renders it directly.
 
-Migration000015 is applied to this workspace's local DB. Fresh backend installs
-must apply `migrations/000015_create_cash_movements.up.sql` after000014. No real
+Fresh backend installs must apply `migrations/000015_create_cash_movements.up.sql`
+after 000014, followed by `migrations/000016_store_only_firebase_image_urls.up.sql`.
+Migration 000016 removes duplicate Firebase object metadata so PostgreSQL retains
+only `image_url`, `avatar_url`, and `proof_url`. It refuses to run while legacy local
+product/avatar URLs or local cash-proof object keys still require migration. No real
 cash record or till closure was created during verification. Existing frozen
 closings are preserved. Pending uncertain writes must be recovered/retried with
 the same intent; inspect history before re-entry after browser reload/logout.
 
-See the [cash movement implementation log](../CASH_MOVEMENTS_IMPLEMENTATION_LOG_2026-10-24.md)
-for API, permissions, corrections, tests and storage/recovery limitations. General
-expense accounting and private Firebase evidence storage remain separate work.
+See the generated OpenAPI and `api/bruno/cash-movements/` for API, permissions,
+corrections, tests, and recovery behavior. General expense accounting remains
+separate work.

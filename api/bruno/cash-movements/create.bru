@@ -27,5 +27,5 @@ docs {
 }
 
 tests {
-  test("immutable identity returned", function () { expect(res.body.data.id).to.be.a("string"); expect(res.body.data.request_id).to.be.a("string"); expect(res.body.data).not.to.have.property("proof_object_key"); });
+  test("immutable identity returned", function () { expect(res.body.data.id).to.be.a("string"); expect(res.body.data.request_id).to.be.a("string"); expect(res.body.data).not.to.have.property("proof_url"); });
 }

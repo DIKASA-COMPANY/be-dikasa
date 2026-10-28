@@ -3,47 +3,48 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestLocalModeNeedsNeitherFirebaseNorSMTP(t *testing.T) {
-	values := map[string]string{"AUTH_MODE": "local", "DATABASE_URL": "postgres://localhost/dikasa", "LOCAL_AUTH_SECRET": "0123456789abcdef0123456789abcdef"}
-	cfg, err := Load(func(key string) string { return values[key] })
-	if err != nil {
-		t.Fatal(err)
+func TestLoadRejectsLegacyLocalAuthAndStorageModes(t *testing.T) {
+	base := map[string]string{
+		"DATABASE_URL": "postgres://localhost/dikasa", "FIREBASE_PROJECT_ID": "dikasa-dev",
+		"FIREBASE_WEB_API_KEY": "api-key", "FIREBASE_STORAGE_BUCKET": "dikasa-dev.firebasestorage.app",
+		"OTP_SECRET": "0123456789abcdef0123456789abcdef", "SMTP_HOST": "smtp.example.com",
+		"SMTP_PORT": "587", "SMTP_FROM": "Dikasa <mailer@example.com>",
 	}
-	if cfg.AuthMode != "local" || cfg.Mail.Mode != "disabled" {
-		t.Fatalf("unexpected mode: %+v", cfg)
+	tests := []struct {
+		name, key, value, want string
+	}{
+		{name: "local auth", key: "AUTH_MODE", value: "local", want: "AUTH_MODE=firebase"},
+		{name: "local storage", key: "IMAGE_STORAGE_MODE", value: "local", want: "IMAGE_STORAGE_MODE=firebase"},
+		{name: "disabled storage", key: "IMAGE_STORAGE_MODE", value: "disabled", want: "IMAGE_STORAGE_MODE=firebase"},
 	}
-	values["LOCAL_AUTH_SECRET"] = "short"
-	if _, err := Load(func(key string) string { return values[key] }); err == nil {
-		t.Fatal("accepted weak local auth secret")
-	}
-	values["AUTH_MODE"] = "typo"
-	if _, err := Load(func(key string) string { return values[key] }); err == nil {
-		t.Fatal("accepted unknown mode")
-	}
-}
-
-func TestLocalImageStorageNeedsTrustedBaseURL(t *testing.T) {
-	values := map[string]string{"AUTH_MODE": "local", "DATABASE_URL": "postgres://localhost/dikasa", "LOCAL_AUTH_SECRET": "0123456789abcdef0123456789abcdef", "IMAGE_STORAGE_MODE": "local", "LOCAL_IMAGE_DIRECTORY": "uploads"}
-	if _, err := Load(func(k string) string { return values[k] }); err == nil {
-		t.Fatal("accepted missing image base URL")
-	}
-	values["PUBLIC_BASE_URL"] = "http://127.0.0.1:8081"
-	if _, err := Load(func(k string) string { return values[k] }); err != nil {
-		t.Fatal(err)
-	}
-	values["PUBLIC_BASE_URL"] = "http://user:secret@host/path?bad=true"
-	if _, err := Load(func(k string) string { return values[k] }); err == nil {
-		t.Fatal("accepted unsafe base URL")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			values := make(map[string]string, len(base)+1)
+			for key, value := range base {
+				values[key] = value
+			}
+			values[test.key] = test.value
+			_, err := Load(func(key string) string { return values[key] })
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("expected %q rejection containing %q, got %v", test.value, test.want, err)
+			}
+		})
 	}
 }
 
-func TestFirebaseRemainsDefaultAndRequiresCredentials(t *testing.T) {
-	values := map[string]string{"DATABASE_URL": "postgres://localhost/dikasa", "LOCAL_AUTH_SECRET": "0123456789abcdef0123456789abcdef"}
-	if _, err := Load(func(key string) string { return values[key] }); err == nil {
-		t.Fatal("silently fell back to local authentication")
+func TestLoadRequiresFirebaseStorageBucketByDefault(t *testing.T) {
+	values := map[string]string{
+		"DATABASE_URL": "postgres://localhost/dikasa", "FIREBASE_PROJECT_ID": "dikasa-dev",
+		"FIREBASE_WEB_API_KEY": "api-key", "OTP_SECRET": "0123456789abcdef0123456789abcdef",
+		"SMTP_HOST": "smtp.example.com", "SMTP_PORT": "587", "SMTP_FROM": "Dikasa <mailer@example.com>",
+	}
+	_, err := Load(func(key string) string { return values[key] })
+	if err == nil || !strings.Contains(err.Error(), "FIREBASE_STORAGE_BUCKET") {
+		t.Fatalf("expected required Firebase bucket, got %v", err)
 	}
 }
 
@@ -56,34 +57,33 @@ func TestLoadRequiresApplicationConfiguration(t *testing.T) {
 
 func TestLoadReturnsTypedConfiguration(t *testing.T) {
 	values := map[string]string{
-		"PORT":                 "9090",
-		"DATABASE_URL":         "postgres://localhost/dikasa",
-		"FIREBASE_PROJECT_ID":  "dikasa-dev",
-		"FIREBASE_WEB_API_KEY": "api-key",
-		"IMAGE_STORAGE_MODE":   "disabled",
-		"OTP_SECRET":           "0123456789abcdef0123456789abcdef",
-		"SMTP_HOST":            "smtp.example.com",
-		"SMTP_PORT":            "587",
-		"SMTP_USERNAME":        "mailer@example.com",
-		"SMTP_PASSWORD":        "smtp-secret",
-		"SMTP_FROM":            "Dikasa <mailer@example.com>",
+		"PORT":                    "9090",
+		"DATABASE_URL":            "postgres://localhost/dikasa",
+		"FIREBASE_PROJECT_ID":     "dikasa-dev",
+		"FIREBASE_WEB_API_KEY":    "api-key",
+		"FIREBASE_STORAGE_BUCKET": "dikasa-dev.firebasestorage.app",
+		"OTP_SECRET":              "0123456789abcdef0123456789abcdef",
+		"SMTP_HOST":               "smtp.example.com",
+		"SMTP_PORT":               "587",
+		"SMTP_USERNAME":           "mailer@example.com",
+		"SMTP_PASSWORD":           "smtp-secret",
+		"SMTP_FROM":               "Dikasa <mailer@example.com>",
 	}
 
 	configuration, err := Load(func(key string) string { return values[key] })
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	if configuration.Port != "9090" || configuration.Firebase.ProjectID != "dikasa-dev" || configuration.Firebase.StorageMode != "disabled" || configuration.Mail.Host != "smtp.example.com" || configuration.OTPSecret == "" {
+	if configuration.Port != "9090" || configuration.Firebase.ProjectID != "dikasa-dev" || configuration.Firebase.StorageBucket != "dikasa-dev.firebasestorage.app" || configuration.Mail.Host != "smtp.example.com" || configuration.OTPSecret == "" {
 		t.Fatalf("unexpected config: %+v", configuration)
 	}
 }
 
-func TestLoadRequiresFirebaseBucketOnlyWhenStorageEnabled(t *testing.T) {
+func TestLoadRequiresFirebaseBucket(t *testing.T) {
 	values := map[string]string{
 		"DATABASE_URL":         "postgres://localhost/dikasa",
 		"FIREBASE_PROJECT_ID":  "dikasa-dev",
 		"FIREBASE_WEB_API_KEY": "api-key",
-		"IMAGE_STORAGE_MODE":   "firebase",
 		"OTP_SECRET":           "0123456789abcdef0123456789abcdef",
 		"SMTP_HOST":            "smtp.example.com",
 		"SMTP_PORT":            "587",
@@ -117,13 +117,14 @@ func TestLoadDotEnvDoesNotOverrideExistingEnvironment(t *testing.T) {
 
 func TestLoadUsesDefaultPort(t *testing.T) {
 	values := map[string]string{
-		"DATABASE_URL":         "postgres://localhost/dikasa",
-		"FIREBASE_PROJECT_ID":  "dikasa-dev",
-		"FIREBASE_WEB_API_KEY": "api-key",
-		"OTP_SECRET":           "0123456789abcdef0123456789abcdef",
-		"SMTP_HOST":            "smtp.example.com",
-		"SMTP_PORT":            "587",
-		"SMTP_FROM":            "mailer@example.com",
+		"DATABASE_URL":            "postgres://localhost/dikasa",
+		"FIREBASE_PROJECT_ID":     "dikasa-dev",
+		"FIREBASE_WEB_API_KEY":    "api-key",
+		"FIREBASE_STORAGE_BUCKET": "dikasa-dev.firebasestorage.app",
+		"OTP_SECRET":              "0123456789abcdef0123456789abcdef",
+		"SMTP_HOST":               "smtp.example.com",
+		"SMTP_PORT":               "587",
+		"SMTP_FROM":               "mailer@example.com",
 	}
 
 	configuration, err := Load(func(key string) string { return values[key] })
@@ -137,22 +138,15 @@ func TestLoadUsesDefaultPort(t *testing.T) {
 
 func TestLoadRequiresOTPAndSMTPConfiguration(t *testing.T) {
 	values := map[string]string{
-		"DATABASE_URL":         "postgres://localhost/dikasa",
-		"FIREBASE_PROJECT_ID":  "dikasa-dev",
-		"FIREBASE_WEB_API_KEY": "api-key",
+		"DATABASE_URL":            "postgres://localhost/dikasa",
+		"FIREBASE_PROJECT_ID":     "dikasa-dev",
+		"FIREBASE_WEB_API_KEY":    "api-key",
+		"FIREBASE_STORAGE_BUCKET": "dikasa-dev.firebasestorage.app",
 	}
 
 	_, err := Load(func(key string) string { return values[key] })
 
 	if err == nil {
 		t.Fatal("expected missing OTP and SMTP configuration error")
-	}
-}
-
-func TestCashProofDirectoryDefaultsWithoutSMTP(t *testing.T) {
-	v := map[string]string{"AUTH_MODE": "local", "DATABASE_URL": "postgres://localhost/dikasa", "LOCAL_AUTH_SECRET": "0123456789abcdef0123456789abcdef", "IMAGE_STORAGE_MODE": "local", "LOCAL_IMAGE_DIRECTORY": "uploads", "PUBLIC_BASE_URL": "http://127.0.0.1:8081"}
-	c, e := Load(func(k string) string { return v[k] })
-	if e != nil || c.CashProofDirectory != filepath.Join("uploads", "cash-proofs") {
-		t.Fatal("private proofs missing in local mode", c.CashProofDirectory, e)
 	}
 }

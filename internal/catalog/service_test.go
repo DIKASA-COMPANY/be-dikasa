@@ -178,10 +178,10 @@ func TestCreateProductStoresCommerceFieldsAndVariations(t *testing.T) {
 
 func TestCreateProductCleansNewImageWhenDatabaseFails(t *testing.T) {
 	repository := &fakeRepository{category: &ProductCategory{ID: "cat", OutletID: "outlet-a", ProductType: ProductType{Code: "food"}, IsActive: true}, createErr: errors.New("database unavailable")}
-	images := &fakeImageStore{stored: StoredImage{URL: "https://image", ObjectName: "new-object"}}
+	images := &fakeImageStore{stored: StoredImage{URL: "https://image"}}
 	service := NewService(repository, fakeAccountFinder{account: account("manager")}, images)
 	_, err := service.CreateProduct(context.Background(), "user-a", ProductMutation{Name: "Nasi", CategoryID: "cat", Price: 12000, Image: &ImageUpload{}})
-	if err == nil || len(images.deleted) != 1 || images.deleted[0] != "new-object" {
+	if err == nil || len(images.deleted) != 1 || images.deleted[0] != "https://image" {
 		t.Fatalf("expected failed DB upload cleanup, err=%v deleted=%v", err, images.deleted)
 	}
 }
@@ -195,22 +195,22 @@ func TestDeleteCategoryRejectsCategoryWithActiveProducts(t *testing.T) {
 }
 
 func TestUpdateProductReplacesAndRemovesImagesAfterDatabaseSuccess(t *testing.T) {
-	oldURL, oldObject := "https://old", "old-object"
-	baseProduct := &Product{ID: "product-a", OutletID: "outlet-a", CategoryID: "cat", Name: "Nasi", Price: 12000, ImageURL: &oldURL, ImageObjectName: &oldObject, IsActive: true}
+	oldURL := "https://old"
+	baseProduct := &Product{ID: "product-a", OutletID: "outlet-a", CategoryID: "cat", Name: "Nasi", Price: 12000, ImageURL: &oldURL, IsActive: true}
 	category := &ProductCategory{ID: "cat", OutletID: "outlet-a", ProductType: ProductType{Code: "food"}, IsActive: true}
 	repository := &fakeRepository{product: baseProduct, category: category}
-	images := &fakeImageStore{stored: StoredImage{URL: "https://new", ObjectName: "new-object"}}
+	images := &fakeImageStore{stored: StoredImage{URL: "https://new"}}
 	service := NewService(repository, fakeAccountFinder{account: account("manager")}, images)
 
 	updated, err := service.UpdateProduct(context.Background(), "user-a", "product-a", ProductMutation{Name: "Nasi Baru", CategoryID: "cat", Price: 13000, IsActive: true, Image: &ImageUpload{}})
-	if err != nil || updated.ImageObjectName == nil || *updated.ImageObjectName != "new-object" || len(images.deleted) != 1 || images.deleted[0] != "old-object" {
+	if err != nil || updated.ImageURL == nil || *updated.ImageURL != "https://new" || len(images.deleted) != 1 || images.deleted[0] != "https://old" {
 		t.Fatalf("replace image failed: product=%+v deleted=%v err=%v", updated, images.deleted, err)
 	}
 
-	newObject := "new-object"
-	repository.product = &Product{ID: "product-a", OutletID: "outlet-a", CategoryID: "cat", Name: "Nasi Baru", Price: 13000, ImageObjectName: &newObject, IsActive: true}
+	newURL := "https://new"
+	repository.product = &Product{ID: "product-a", OutletID: "outlet-a", CategoryID: "cat", Name: "Nasi Baru", Price: 13000, ImageURL: &newURL, IsActive: true}
 	updated, err = service.UpdateProduct(context.Background(), "user-a", "product-a", ProductMutation{Name: "Nasi Baru", CategoryID: "cat", Price: 13000, IsActive: true, RemoveImage: true})
-	if err != nil || updated.ImageObjectName != nil || images.deleted[len(images.deleted)-1] != "new-object" {
+	if err != nil || updated.ImageURL != nil || images.deleted[len(images.deleted)-1] != "https://new" {
 		t.Fatalf("remove image failed: product=%+v deleted=%v err=%v", updated, images.deleted, err)
 	}
 }

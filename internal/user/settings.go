@@ -53,10 +53,10 @@ type AvatarUpload struct {
 	ContentType, Filename string
 }
 
-// AvatarImage adalah referensi object storage avatar.
-type AvatarImage struct{ URL, ObjectName string }
+// AvatarImage contains the only avatar reference persisted in PostgreSQL.
+type AvatarImage struct{ URL string }
 
-// AvatarStore menyimpan dan menghapus avatar akun.
+// AvatarStore saves avatars and deletes them through their persisted Firebase URL.
 type AvatarStore interface {
 	Save(context.Context, string, string, *AvatarUpload) (*AvatarImage, error)
 	Delete(context.Context, string) error
@@ -139,7 +139,7 @@ func (service *Service) UpdateProfile(ctx context.Context, userID string, mutati
 	if err := service.applyPersonalDetails(ctx, account, mutation); err != nil {
 		return nil, err
 	}
-	oldObject := account.AvatarObjectName
+	oldURL := account.AvatarURL
 	var uploaded *AvatarImage
 	if mutation.Avatar != nil {
 		if account.OutletID == nil || *account.OutletID == "" {
@@ -149,29 +149,29 @@ func (service *Service) UpdateProfile(ctx context.Context, userID string, mutati
 		if err != nil {
 			return nil, err
 		}
-		account.AvatarURL, account.AvatarObjectName = &uploaded.URL, &uploaded.ObjectName
+		account.AvatarURL = &uploaded.URL
 	} else if isSet("remove_avatar") && mutation.RemoveAvatar {
-		account.AvatarURL, account.AvatarObjectName = nil, nil
+		account.AvatarURL = nil
 	}
 	if service.settings == nil {
 		if uploaded != nil {
-			service.cleanupUnreferencedAvatar(ctx, userID, uploaded.ObjectName)
+			service.cleanupUnreferencedAvatar(ctx, userID, uploaded.URL)
 		}
 		return nil, errors.New("user settings repository unavailable")
 	}
 	if atomic, ok := service.repository.(atomicSettingsRepository); ok {
-		account, err = atomic.PatchProfile(ctx, account, mutation, oldObject)
+		account, err = atomic.PatchProfile(ctx, account, mutation, oldURL)
 	} else {
 		err = service.settings.UpdateProfile(ctx, account)
 	}
 	if err != nil {
 		if uploaded != nil {
-			service.cleanupUnreferencedAvatar(ctx, userID, uploaded.ObjectName)
+			service.cleanupUnreferencedAvatar(ctx, userID, uploaded.URL)
 		}
 		return nil, err
 	}
-	if oldObject != nil && (uploaded != nil || (isSet("remove_avatar") && mutation.RemoveAvatar)) {
-		_ = service.avatars.Delete(ctx, *oldObject)
+	if oldURL != nil && (uploaded != nil || (isSet("remove_avatar") && mutation.RemoveAvatar)) {
+		_ = service.avatars.Delete(ctx, *oldURL)
 	}
 	return account, nil
 }
@@ -250,15 +250,15 @@ func WithPasswordChangesAllowed(allowed bool) ServiceOption {
 
 // cleanupUnreferencedAvatar avoids deleting a live photo after an ambiguous commit failure.
 // If the database cannot confirm the reference, retain the potential orphan for reconciliation.
-func (s *Service) cleanupUnreferencedAvatar(ctx context.Context, id, object string) {
+func (s *Service) cleanupUnreferencedAvatar(ctx context.Context, id, downloadURL string) {
 	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 	defer cancel()
 	current, e := s.repository.FindByID(cleanup, id)
 	if e != nil && !errors.Is(e, ErrNotFound) {
 		return
 	}
-	if current != nil && current.AvatarObjectName != nil && *current.AvatarObjectName == object {
+	if current != nil && current.AvatarURL != nil && *current.AvatarURL == downloadURL {
 		return
 	}
-	_ = s.avatars.Delete(cleanup, object)
+	_ = s.avatars.Delete(cleanup, downloadURL)
 }

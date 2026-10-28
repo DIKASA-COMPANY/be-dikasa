@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"be-dikasa/internal/shared/firebaseimage"
 	"bytes"
 	"context"
 	"errors"
@@ -48,15 +49,15 @@ func validPNG(t *testing.T) []byte {
 
 func TestFirebaseImageStoreValidatesAndBuildsDownloadTokenURL(t *testing.T) {
 	bucket := &fakeObjectBucket{}
-	store := NewFirebaseImageStore("dikasa.firebasestorage.app", bucket)
+	store := NewFirebaseImageStore(firebaseimage.NewUploader("dikasa.firebasestorage.app", bucket))
 	content := validPNG(t)
-	stored, err := store.Save(context.Background(), "outlet-a", "product-a", &ImageUpload{
+	stored, err := store.Save(context.Background(), "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222", &ImageUpload{
 		Reader: bytes.NewReader(content), Size: int64(len(content)), ContentType: "image/png", Filename: "menu.png",
 	})
 	if err != nil {
 		t.Fatalf("save image: %v", err)
 	}
-	if !strings.HasPrefix(bucket.uploadedName, "outlets/outlet-a/products/product-a/") {
+	if !strings.HasPrefix(bucket.uploadedName, "outlets/11111111-1111-4111-8111-111111111111/products/22222222-2222-4222-8222-222222222222/images/") {
 		t.Fatalf("unexpected object: %s", bucket.uploadedName)
 	}
 	if !strings.Contains(stored.URL, "https://firebasestorage.googleapis.com/v0/b/dikasa.firebasestorage.app/o/") || !strings.Contains(stored.URL, "token=") {
@@ -65,21 +66,38 @@ func TestFirebaseImageStoreValidatesAndBuildsDownloadTokenURL(t *testing.T) {
 }
 
 func TestFirebaseImageStoreRejectsInvalidAndOversizedFiles(t *testing.T) {
-	store := NewFirebaseImageStore("bucket", &fakeObjectBucket{})
-	if _, err := store.Save(context.Background(), "o", "p", &ImageUpload{Reader: bytes.NewReader([]byte("not an image")), Size: 12, ContentType: "image/png", Filename: "bad.png"}); !errors.Is(err, ErrInvalidImage) {
+	store := NewFirebaseImageStore(firebaseimage.NewUploader("bucket", &fakeObjectBucket{}))
+	outletID, productID := "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
+	if _, err := store.Save(context.Background(), outletID, productID, &ImageUpload{Reader: bytes.NewReader([]byte("not an image")), Size: 12, ContentType: "image/png", Filename: "bad.png"}); !errors.Is(err, ErrInvalidImage) {
 		t.Fatalf("expected invalid image, got %v", err)
 	}
-	if _, err := store.Save(context.Background(), "o", "p", &ImageUpload{Reader: bytes.NewReader(nil), Size: maxImageBytes + 1, ContentType: "image/png", Filename: "big.png"}); !errors.Is(err, ErrImageTooLarge) {
+	if _, err := store.Save(context.Background(), outletID, productID, &ImageUpload{Reader: bytes.NewReader(nil), Size: maxImageBytes + 1, ContentType: "image/png", Filename: "big.png"}); !errors.Is(err, ErrImageTooLarge) {
 		t.Fatalf("expected too large, got %v", err)
 	}
 }
 
 func TestFirebaseImageStoreMapsBucketFailures(t *testing.T) {
 	bucket := &fakeObjectBucket{err: errors.New("firebase unavailable")}
-	store := NewFirebaseImageStore("bucket", bucket)
+	store := NewFirebaseImageStore(firebaseimage.NewUploader("bucket", bucket))
 	content := validPNG(t)
-	_, err := store.Save(context.Background(), "o", "p", &ImageUpload{Reader: bytes.NewReader(content), Size: int64(len(content)), ContentType: "image/png", Filename: "ok.png"})
+	_, err := store.Save(context.Background(), "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222", &ImageUpload{Reader: bytes.NewReader(content), Size: int64(len(content)), ContentType: "image/png", Filename: "ok.png"})
 	if !errors.Is(err, ErrStorage) {
 		t.Fatalf("expected storage error, got %v", err)
+	}
+}
+
+func TestFirebaseImageStoreRejectsUnsafeObjectIdentifiers(t *testing.T) {
+	content := validPNG(t)
+	store := NewFirebaseImageStore(firebaseimage.NewUploader("bucket", &fakeObjectBucket{}))
+	_, err := store.Save(context.Background(), "../other-outlet", "22222222-2222-4222-8222-222222222222", &ImageUpload{Reader: bytes.NewReader(content), Size: int64(len(content)), ContentType: "image/png", Filename: "ok.png"})
+	if !errors.Is(err, ErrInvalidImage) {
+		t.Fatalf("expected invalid identifier rejection, got %v", err)
+	}
+}
+
+func TestFirebaseImageStoreRejectsDeleteOutsideProductImagePrefix(t *testing.T) {
+	store := NewFirebaseImageStore(firebaseimage.NewUploader("bucket", &fakeObjectBucket{}))
+	if err := store.Delete(context.Background(), "outlets/not-a-uuid/secrets/config.json"); !errors.Is(err, ErrInvalidImage) {
+		t.Fatalf("expected unsafe delete rejection, got %v", err)
 	}
 }

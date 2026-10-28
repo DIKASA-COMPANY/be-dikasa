@@ -1,0 +1,35 @@
+meta {
+  name: Upload My Firebase Avatar
+  type: http
+  seq: 24
+}
+
+patch {
+  url: {{baseUrl}}/dikasa/v1/users/me
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:multipart-form {
+  avatar: @file({{profileImagePath}})
+  remove_avatar: false
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.avatar_url: isNotEmpty
+}
+
+tests {
+  test("avatar is a Firebase download URL", function () {
+    expect(res.body.data.avatar_url).to.match(/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\//);
+  });
+}
+
+docs {
+  The backend validates and uploads the avatar to Firebase Storage. The response contains the Google download URL; clients render that URL directly.
+}

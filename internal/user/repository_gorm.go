@@ -18,7 +18,7 @@ type GORMRepository struct {
 func (repository *GORMRepository) UpdateProfile(ctx context.Context, account *User) error {
 	result := repository.db.WithContext(ctx).Model(&User{}).Where("id = ?", account.ID).Updates(map[string]any{
 		"first_name": account.FirstName, "last_name": account.LastName, "phone_number": account.PhoneNumber,
-		"email": account.Email, "avatar_url": account.AvatarURL, "avatar_object_name": account.AvatarObjectName,
+		"email": account.Email, "avatar_url": account.AvatarURL,
 	})
 	if result.Error != nil {
 		return normalizeUserWriteError(result.Error)

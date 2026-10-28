@@ -37,8 +37,6 @@ type Dependencies struct {
 	SavedOrderHandler    *savedorder.Handler
 	StockHandler         *catalog.StockHandler
 	ExportHandler        *catalog.ExportHandler
-	ProductImages        http.Handler
-	AvatarImages         http.Handler
 	CORSOrigins          []string
 	RegistrationDisabled bool
 	AuthHandler          *auth.Handler
@@ -78,7 +76,7 @@ func NewRouter(dependencies Dependencies) *gin.Engine {
 		})
 	}
 	router.Use(AuthMiddleware(dependencies.TokenVerifier, func(path string) bool {
-		return isPublicPath(path) || (dependencies.AvatarImages != nil && strings.HasPrefix(path, apiPrefix+"/avatar-images/")) || (dependencies.ProductImages != nil && strings.HasPrefix(path, apiPrefix+"/product-images/"))
+		return isPublicPath(path)
 	}))
 	// Bound multipart parsing before it can allocate memory or spill large uploads to disk.
 	router.Use(func(c *gin.Context) {
@@ -93,14 +91,6 @@ func NewRouter(dependencies Dependencies) *gin.Engine {
 		}
 		c.Next()
 	})
-	if dependencies.AvatarImages != nil {
-		router.GET(apiPrefix+"/avatar-images/:filename", gin.WrapH(dependencies.AvatarImages))
-		router.HEAD(apiPrefix+"/avatar-images/:filename", gin.WrapH(dependencies.AvatarImages))
-	}
-	if dependencies.ProductImages != nil {
-		router.GET(apiPrefix+"/product-images/:filename", gin.WrapH(dependencies.ProductImages))
-		router.HEAD(apiPrefix+"/product-images/:filename", gin.WrapH(dependencies.ProductImages))
-	}
 	router.NoRoute(func(c *gin.Context) {
 		sharedresponse.WriteError(c.Writer, sharederrors.Standard(http.StatusNotFound, nil))
 	})
@@ -120,29 +110,13 @@ func NewRouter(dependencies Dependencies) *gin.Engine {
 	configuration.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
 		"firebaseBearer": {
 			Type: "http", Scheme: "bearer", BearerFormat: "JWT",
-			Description: "Gunakan access_token dari /login: Firebase ID token atau local JWT sesuai AUTH_MODE.",
+			Description: "Gunakan Firebase ID token pada access_token dari /login.",
 		},
 	}
 	configuration.RejectUnknownQueryParameters = true
 
 	group := router.Group(apiPrefix)
 	api := humagin.NewWithGroup(router, group, configuration)
-	if api.OpenAPI().Paths == nil {
-		api.OpenAPI().Paths = map[string]*huma.PathItem{}
-	}
-	api.OpenAPI().Paths["/product-images/{filename}"] = &huma.PathItem{Get: &huma.Operation{OperationID: "get-product-image", Summary: "Gambar produk lokal publik dengan nama acak", Description: "Hanya PNG/JPEG dengan nama yang dibuat server. Tidak ada directory listing. Aktif ketika IMAGE_STORAGE_MODE=local.", Tags: []string{"Katalog"}, Security: []map[string][]string{{}}, Parameters: []*huma.Param{{Name: "filename", In: "path", Required: true, Schema: &huma.Schema{Type: "string"}}}, Responses: map[string]*huma.Response{"200": {Description: "Gambar produk", Content: map[string]*huma.MediaType{"image/png": {Schema: &huma.Schema{Type: "string", Format: "binary"}}, "image/jpeg": {Schema: &huma.Schema{Type: "string", Format: "binary"}}}}, "404": {Description: "Gambar tidak ditemukan"}}}}
-
-	avatarPath := *api.OpenAPI().Paths["/product-images/{filename}"]
-	avatarGet := *avatarPath.Get
-	avatarGet.OperationID = "get-avatar-image"
-	avatarGet.Summary = "Foto profil lokal publik dengan nama acak"
-	avatarPath.Get = &avatarGet
-	avatarHead := avatarGet
-	avatarHead.OperationID = "head-avatar-image"
-	avatarHead.Responses = map[string]*huma.Response{"200": {Description: "Metadata foto profil lokal"}, "404": {Description: "Foto tidak ditemukan"}}
-	avatarPath.Head = &avatarHead
-	api.OpenAPI().Paths["/avatar-images/{filename}"] = &avatarPath
-
 	if dependencies.StockHandler != nil {
 		catalog.RegisterStockRoutes(api, dependencies.StockHandler)
 	}

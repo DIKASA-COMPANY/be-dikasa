@@ -171,6 +171,22 @@ func TestMakefileAppliesAndRollsBackMigrationsInOrder(t *testing.T) {
 		"migrations/000007_create_payment_wallets_and_transactions.down.sql",
 		"migrations/000008_create_customers_and_link_transactions.up.sql",
 		"migrations/000008_create_customers_and_link_transactions.down.sql",
+		"migrations/000009_add_product_stock.up.sql",
+		"migrations/000009_add_product_stock.down.sql",
+		"migrations/000010_add_saved_orders.up.sql",
+		"migrations/000010_add_saved_orders.down.sql",
+		"migrations/000011_add_transaction_refunds.up.sql",
+		"migrations/000011_add_transaction_refunds.down.sql",
+		"migrations/000012_add_cash_reconciliation.up.sql",
+		"migrations/000012_add_cash_reconciliation.down.sql",
+		"migrations/000013_add_sale_category_snapshots.up.sql",
+		"migrations/000013_add_sale_category_snapshots.down.sql",
+		"migrations/000014_add_user_personal_address.up.sql",
+		"migrations/000014_add_user_personal_address.down.sql",
+		"migrations/000015_create_cash_movements.up.sql",
+		"migrations/000015_create_cash_movements.down.sql",
+		"migrations/000016_store_only_firebase_image_urls.up.sql",
+		"migrations/000016_store_only_firebase_image_urls.down.sql",
 	} {
 		if !strings.Contains(makefile, migration) {
 			t.Errorf("Makefile must run %s", migration)
@@ -196,5 +212,29 @@ func TestMakefileAppliesAndRollsBackMigrationsInOrder(t *testing.T) {
 	}
 	if strings.Index(makefile, "000008_create_customers_and_link_transactions.down.sql") > strings.Index(makefile, "000007_create_payment_wallets_and_transactions.down.sql") {
 		t.Fatal("migrate-down must roll back customers before payments")
+	}
+}
+
+func TestFirebaseURLOnlyMigrationRemovesObjectMetadata(t *testing.T) {
+	content, err := os.ReadFile("000016_store_only_firebase_image_urls.up.sql")
+	if err != nil {
+		t.Fatalf("read Firebase URL-only migration: %v", err)
+	}
+	sql := strings.ToLower(string(content))
+	for _, fragment := range []string{
+		"from products where image_url is not null",
+		"from users where avatar_url is not null",
+		"firebasestorage.googleapis.com",
+		"drop column image_object_name",
+		"drop column avatar_object_name",
+		"add column proof_url text",
+		"drop column proof_object_key",
+		"drop column proof_content_type",
+		"drop column proof_sha256",
+		"drop column proof_size",
+	} {
+		if !strings.Contains(sql, fragment) {
+			t.Errorf("URL-only migration must contain %q", fragment)
+		}
 	}
 }

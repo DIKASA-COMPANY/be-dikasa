@@ -1,131 +1,89 @@
 package cash
 
 import (
+	"be-dikasa/internal/shared/firebaseimage"
 	"be-dikasa/internal/shared/imagefile"
+	"bytes"
 	"context"
-	"github.com/google/uuid"
-	"io"
-	"os"
-	"path/filepath"
+	"path"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
-// ProofObject names one confined private evidence file.
-type ProofObject struct{ Key string }
+const maxProofBytes int64 = 3 * 1024 * 1024
 
-// MovementProofStore is separate from public product and avatar media.
+// ProofObject contains the only cash-proof reference persisted in PostgreSQL.
+type ProofObject struct{ URL string }
+
+// MovementProofStore uploads and deletes cash proof images through Firebase URLs.
 type MovementProofStore interface {
 	Save(context.Context, string, string, imagefile.Image) (ProofObject, error)
-	Read(context.Context, string) ([]byte, string, error)
 	Delete(context.Context, string) error
 }
 
-// LocalMovementProofStore exposes no public HTTP handler.
-type LocalMovementProofStore struct{ root *os.Root }
+// FirebaseMovementProofStore stores cash proofs through the shared Firebase uploader.
+type FirebaseMovementProofStore struct{ uploader *firebaseimage.Uploader }
 
-// NewLocalMovementProofStore rejects symlink roots before opening its filesystem boundary.
-func NewLocalMovementProofStore(directory string) (*LocalMovementProofStore, error) {
-	a, e := filepath.Abs(directory)
-	if e != nil {
-		return nil, e
-	}
-	if e = os.MkdirAll(a, 0700); e != nil {
-		return nil, e
-	}
-	r, e := filepath.EvalSymlinks(a)
-	if e != nil || !strings.EqualFold(a, r) {
-		return nil, ErrProofStorage
-	}
-	root, e := os.OpenRoot(a)
-	if e != nil {
-		return nil, e
-	}
-	return &LocalMovementProofStore{root}, nil
+// NewFirebaseMovementProofStore creates proof storage using the shared upload mechanism.
+func NewFirebaseMovementProofStore(uploader *firebaseimage.Uploader) *FirebaseMovementProofStore {
+	return &FirebaseMovementProofStore{uploader: uploader}
 }
 
-// Close releases the private filesystem boundary.
-func (s *LocalMovementProofStore) Close() error { return s.root.Close() }
-
-// Save writes original validated bytes with an exclusive generated filename.
-func (s *LocalMovementProofStore) Save(_ context.Context, out, sid string, v imagefile.Image) (ProofObject, error) {
-	if _, e := uuid.Parse(out); e != nil {
+// Save writes validated evidence and returns only its Firebase download URL.
+func (store *FirebaseMovementProofStore) Save(ctx context.Context, outletID, sessionID string, value imagefile.Image) (ProofObject, error) {
+	outlet, err := canonicalProofUUID(outletID)
+	if err != nil {
 		return ProofObject{}, ErrProofInvalid
 	}
-	if _, e := uuid.Parse(sid); e != nil {
+	session, err := canonicalProofUUID(sessionID)
+	if err != nil || len(value.Bytes) < 1 || int64(len(value.Bytes)) > maxProofBytes || (value.Extension != ".png" && value.Extension != ".jpg") {
 		return ProofObject{}, ErrProofInvalid
 	}
-	if len(v.Bytes) < 1 || len(v.Bytes) > 3145728 || (v.Extension != ".png" && v.Extension != ".jpg") {
-		return ProofObject{}, ErrProofInvalid
-	}
-	key := uuid.MustParse(out).String() + "_" + uuid.MustParse(sid).String() + "_" + uuid.NewString() + v.Extension
-	f, e := s.root.OpenFile(key, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-	if e != nil {
+	objectName := "outlets/" + outlet + "/cash-sessions/" + session + "/proofs/" + uuid.NewString() + value.Extension
+	downloadURL, err := store.uploader.Upload(ctx, objectName, bytes.NewReader(value.Bytes), value.ContentType)
+	if err != nil {
 		return ProofObject{}, ErrProofStorage
 	}
-	_, e = f.Write(v.Bytes)
-	ce := f.Close()
-	if e != nil || ce != nil {
-		s.root.Remove(key)
-		return ProofObject{}, ErrProofStorage
-	}
-	return ProofObject{key}, nil
+	return ProofObject{URL: downloadURL}, nil
 }
 
-// validProofKey accepts only canonical generated identifiers and an image extension.
-func validProofKey(key string) bool {
-	ext := filepath.Ext(key)
-	if ext != ".png" && ext != ".jpg" {
-		return false
-	}
-	p := strings.Split(strings.TrimSuffix(key, ext), "_")
-	if len(p) != 3 {
-		return false
-	}
-	for _, v := range p {
-		u, e := uuid.Parse(v)
-		if e != nil || u.String() != v {
-			return false
-		}
-	}
-	return true
-}
-
-// Read refuses symlinks, traversal, directories and oversized stored files.
-func (s *LocalMovementProofStore) Read(_ context.Context, key string) ([]byte, string, error) {
-	if !validProofKey(key) {
-		return nil, "", ErrProofInvalid
-	}
-	i, e := s.root.Lstat(key)
-	if e != nil || !i.Mode().IsRegular() || i.Size() > 3145728 {
-		return nil, "", ErrProofStorage
-	}
-	f, e := s.root.Open(key)
-	if e != nil {
-		return nil, "", ErrProofStorage
-	}
-	defer f.Close()
-	b, e := io.ReadAll(io.LimitReader(f, 3145729))
-	if e != nil || len(b) > 3145728 {
-		return nil, "", ErrProofStorage
-	}
-	mime := "image/jpeg"
-	if strings.HasSuffix(key, ".png") {
-		mime = "image/png"
-	}
-	return b, mime, nil
-}
-
-// Delete removes generated regular files only; failures may leave an orphan.
-func (s *LocalMovementProofStore) Delete(_ context.Context, key string) error {
-	if !validProofKey(key) {
+// Delete removes a cash proof identified by its persisted Firebase download URL.
+func (store *FirebaseMovementProofStore) Delete(ctx context.Context, downloadURL string) error {
+	objectName, err := store.uploader.ObjectName(downloadURL)
+	if err != nil || !validFirebaseProofKey(objectName) {
 		return ErrProofInvalid
 	}
-	i, e := s.root.Lstat(key)
-	if os.IsNotExist(e) {
-		return nil
-	}
-	if e != nil || !i.Mode().IsRegular() {
+	if err = store.uploader.DeleteURL(ctx, downloadURL); err != nil {
 		return ErrProofStorage
 	}
-	return s.root.Remove(key)
+	return nil
+}
+
+func canonicalProofUUID(value string) (string, error) {
+	id, err := uuid.Parse(value)
+	if err != nil || id == uuid.Nil || id.String() != value {
+		return "", ErrProofInvalid
+	}
+	return id.String(), nil
+}
+
+// validFirebaseProofKey restricts deletion to server-generated cash proof objects.
+func validFirebaseProofKey(objectName string) bool {
+	parts := strings.Split(objectName, "/")
+	if len(parts) != 6 || parts[0] != "outlets" || parts[2] != "cash-sessions" || parts[4] != "proofs" {
+		return false
+	}
+	if _, err := canonicalProofUUID(parts[1]); err != nil {
+		return false
+	}
+	if _, err := canonicalProofUUID(parts[3]); err != nil {
+		return false
+	}
+	extension := path.Ext(parts[5])
+	if extension != ".png" && extension != ".jpg" {
+		return false
+	}
+	_, err := canonicalProofUUID(strings.TrimSuffix(parts[5], extension))
+	return err == nil
 }

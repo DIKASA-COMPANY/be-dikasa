@@ -1,4 +1,4 @@
-// Package imagefile validates bounded original PNG/JPEG bytes for private proofs and avatars.
+// Package imagefile validates bounded original PNG/JPEG bytes for every image API.
 package imagefile
 
 import (
@@ -16,7 +16,7 @@ import (
 	"strings"
 )
 
-// validateAvatar checks bounded image content before either local or cloud persistence.
+// validate checks bounded image content before Firebase persistence.
 func validate(upload *Upload, policy Policy) ([]byte, string, string, error) {
 	if upload == nil || upload.Reader == nil {
 		return nil, "", "", ErrInvalid
@@ -81,8 +81,8 @@ type Policy struct {
 	MaxPixels int64
 }
 
-// AvatarPolicy preserves the existing avatar/proof limits.
-var AvatarPolicy = Policy{3 * 1024 * 1024, 4096, 16000000}
+// StandardPolicy is the single validation policy used by product, avatar, and cash-proof uploads.
+var StandardPolicy = Policy{MaxBytes: 3 * 1024 * 1024, MaxAxis: 4096, MaxPixels: 16_000_000}
 
 // ErrInvalid denotes corrupt or unsupported image content.
 var ErrInvalid = errors.New("invalid image")

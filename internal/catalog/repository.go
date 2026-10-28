@@ -52,7 +52,7 @@ type Repository interface {
 	SoftDeleteOrderType(context.Context, string, string) error
 }
 
-// ImageStore menyimpan dan menghapus object gambar produk.
+// ImageStore saves images and deletes them through their persisted Firebase URL.
 type ImageStore interface {
 	Save(context.Context, string, string, *ImageUpload) (*StoredImage, error)
 	Delete(context.Context, string) error

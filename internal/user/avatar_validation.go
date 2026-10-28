@@ -10,7 +10,7 @@ func validateAvatar(u *AvatarUpload) ([]byte, string, string, error) {
 	if u == nil {
 		return nil, "", "", ErrInvalidAvatar
 	}
-	v, e := imagefile.Validate(imagefile.Upload{Reader: u.Reader, Size: u.Size, ContentType: u.ContentType, Filename: u.Filename}, imagefile.AvatarPolicy)
+	v, e := imagefile.Validate(imagefile.Upload{Reader: u.Reader, Size: u.Size, ContentType: u.ContentType, Filename: u.Filename}, imagefile.StandardPolicy)
 	if errors.Is(e, imagefile.ErrTooLarge) {
 		return nil, "", "", ErrAvatarTooLarge
 	}

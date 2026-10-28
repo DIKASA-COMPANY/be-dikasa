@@ -32,8 +32,14 @@ migrate-up:
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000011_add_transaction_refunds.up.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000012_add_cash_reconciliation.up.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000013_add_sale_category_snapshots.up.sql
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000014_add_user_personal_address.up.sql
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000015_create_cash_movements.up.sql
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000016_store_only_firebase_image_urls.up.sql
 
 migrate-down:
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000016_store_only_firebase_image_urls.down.sql
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000015_create_cash_movements.down.sql
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000014_add_user_personal_address.down.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000013_add_sale_category_snapshots.down.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000012_add_cash_reconciliation.down.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000011_add_transaction_refunds.down.sql

@@ -73,12 +73,11 @@ type MovementDetailOutput struct {
 // MovementActivityOutput preserves full-session totals outside pagination.
 type MovementActivityOutput struct{ Body ActivityPage }
 
-// MovementProofOutput writes original authorized bytes without public cacheability.
+// MovementProofOutput returns the authorized Firebase download URL.
 type MovementProofOutput struct {
-	ContentType  string `header:"Content-Type"`
-	CacheControl string `header:"Cache-Control"`
-	NoSniff      string `header:"X-Content-Type-Options"`
-	Body         []byte
+	Body struct {
+		Data ProofLink `json:"data"`
+	}
 }
 
 // movementError exposes business decisions without internal storage or SQL detail.
@@ -128,7 +127,7 @@ func (h *MovementHandler) Create(ctx context.Context, in *MovementCreateInput) (
 	f := in.RawBody.Data()
 	c := MovementCommand{RequestID: f.RequestID, Kind: f.Kind, Name: f.Name, Amount: f.Amount, Reason: f.Reason}
 	if f.Proof.IsSet {
-		v, e := imagefile.Validate(imagefile.Upload{Reader: f.Proof.File, Size: f.Proof.Size, Filename: f.Proof.Filename, ContentType: f.Proof.ContentType}, imagefile.AvatarPolicy)
+		v, e := imagefile.Validate(imagefile.Upload{Reader: f.Proof.File, Size: f.Proof.Size, Filename: f.Proof.Filename, ContentType: f.Proof.ContentType}, imagefile.StandardPolicy)
 		if errors.Is(e, imagefile.ErrTooLarge) {
 			return nil, movementError(ErrProofTooLarge)
 		}
@@ -191,7 +190,7 @@ func (h *MovementHandler) ByRequest(ctx context.Context, in *MovementRequestInpu
 	return o, nil
 }
 
-// Proof authorizes the event before reading original private image bytes.
+// Proof authorizes the event before returning its Firebase download URL.
 func (h *MovementHandler) Proof(ctx context.Context, in *MovementIDInput) (*MovementProofOutput, error) {
 	a, e := closingIdentity(ctx)
 	if e != nil {
@@ -201,5 +200,7 @@ func (h *MovementHandler) Proof(ctx context.Context, in *MovementIDInput) (*Move
 	if e != nil {
 		return nil, movementError(e)
 	}
-	return &MovementProofOutput{v.ContentType, "private, no-store", "nosniff", v.Bytes}, nil
+	output := &MovementProofOutput{}
+	output.Body.Data = v
+	return output, nil
 }

@@ -59,7 +59,6 @@ type Product struct {
 	LowStockThreshold  int64            `gorm:"not null"`
 	Description        string           `gorm:"type:text;not null"`
 	ImageURL           *string          `gorm:"type:text"`
-	ImageObjectName    *string          `gorm:"type:text"`
 	IsHighlighted      bool             `gorm:"not null"`
 	SortOrder          int              `gorm:"not null"`
 	IsActive           bool             `gorm:"not null"`
@@ -117,11 +116,8 @@ type ImageUpload struct {
 	Filename    string
 }
 
-// StoredImage adalah referensi object storage yang persisten.
-type StoredImage struct {
-	URL        string
-	ObjectName string
-}
+// StoredImage contains the only image reference persisted in PostgreSQL.
+type StoredImage struct{ URL string }
 
 // ProductMutation berisi input create atau patch produk.
 type ProductMutation struct {
