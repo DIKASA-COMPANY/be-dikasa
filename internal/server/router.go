@@ -186,10 +186,19 @@ func health(_ context.Context, _ *struct{}) (*healthOutput, error) {
 }
 
 func isPublicPath(path string) bool {
-	if path == apiPrefix+"/login" || path == apiPrefix+"/register" || strings.HasPrefix(path, apiPrefix+"/register/otp/") || path == apiPrefix+"/docs" || path == apiPrefix+"/docs/" {
+	switch path {
+	case apiPrefix + "/login",
+		apiPrefix + "/register",
+		apiPrefix + "/register/otp/confirm",
+		apiPrefix + "/register/otp/resend",
+		apiPrefix + "/docs",
+		apiPrefix + "/docs/",
+		apiPrefix + "/openapi.json",
+		apiPrefix + "/openapi.yaml":
 		return true
+	default:
+		return strings.HasPrefix(path, apiPrefix+"/schemas/")
 	}
-	return strings.HasPrefix(path, apiPrefix+"/openapi") || strings.HasPrefix(path, apiPrefix+"/schemas/")
 }
 
 func configureHumaErrors() {

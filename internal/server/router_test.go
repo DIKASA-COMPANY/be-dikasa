@@ -3,11 +3,14 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -203,6 +206,10 @@ func (routerSalesProvider) ListCustomers(context.Context, string, sales.Customer
 }
 
 func newTestRouter() http.Handler {
+	return newTestRouterWithVerifier(stubTokenVerifier{token: &firebaseauth.Token{UID: "user-id"}})
+}
+
+func newTestRouterWithVerifier(verifier TokenVerifier) http.Handler {
 	userService := user.NewService(routerUserRepository{})
 	return NewRouter(Dependencies{
 		StockHandler:        catalog.NewStockHandler(nil),
@@ -220,7 +227,7 @@ func newTestRouter() http.Handler {
 		SavedOrderHandler:   savedorder.NewHandler(nil),
 		PaymentHandler:      payment.NewHandler(routerPaymentProvider{}),
 		SalesHandler:        sales.NewHandler(routerSalesProvider{}),
-		TokenVerifier:       stubTokenVerifier{token: &firebaseauth.Token{UID: "user-id"}},
+		TokenVerifier:       verifier,
 	})
 }
 
@@ -373,6 +380,109 @@ func TestRouterPublishesLoginAndProtectsFeatureRoutes(t *testing.T) {
 	router.ServeHTTP(profileResponse, profile)
 	if profileResponse.Code != http.StatusOK || !strings.Contains(profileResponse.Body.String(), `"username":"kasir"`) {
 		t.Fatalf("unexpected profile response: %d %s", profileResponse.Code, profileResponse.Body.String())
+	}
+}
+
+func TestEveryDocumentedNonPublicOperationRequiresBearerToken(t *testing.T) {
+	router := newTestRouter()
+	invalidTokenRouter := newTestRouterWithVerifier(stubTokenVerifier{err: errors.New("invalid token")})
+	request := httptest.NewRequest(http.MethodGet, apiPrefix+"/openapi.json", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("load OpenAPI document: %d %s", response.Code, response.Body.String())
+	}
+
+	var document struct {
+		Paths map[string]map[string]json.RawMessage `json:"paths"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &document); err != nil {
+		t.Fatalf("decode OpenAPI document: %v", err)
+	}
+
+	httpMethods := map[string]bool{
+		"get": true, "post": true, "put": true, "patch": true,
+		"delete": true, "head": true, "options": true, "trace": true,
+	}
+	expectedPublic := map[string]bool{
+		"POST /login":                true,
+		"POST /register":             true,
+		"POST /register/otp/confirm": true,
+		"POST /register/otp/resend":  true,
+	}
+	seenPublic := make(map[string]bool, len(expectedPublic))
+	pathParameter := regexp.MustCompile(`\{[^/{}]+\}`)
+	protected := 0
+	for path, item := range document.Paths {
+		requestPath := apiPrefix + pathParameter.ReplaceAllString(path, "11111111-1111-4111-8111-111111111111")
+		for method := range item {
+			if !httpMethods[method] {
+				continue
+			}
+			operation := strings.ToUpper(method) + " " + path
+			if isPublicPath(requestPath) {
+				if !expectedPublic[operation] {
+					t.Errorf("documented operation is unexpectedly public: %s", operation)
+				}
+				seenPublic[operation] = true
+				continue
+			}
+			protected++
+			t.Run(operation, func(t *testing.T) {
+				unauthenticated := httptest.NewRequest(strings.ToUpper(method), requestPath, nil)
+				result := httptest.NewRecorder()
+				router.ServeHTTP(result, unauthenticated)
+				if result.Code != http.StatusUnauthorized || !strings.Contains(result.Body.String(), `"code":"TOKEN_DIPERLUKAN"`) {
+					t.Fatalf("expected missing-token 401, got %d: %s", result.Code, result.Body.String())
+				}
+
+				invalid := httptest.NewRequest(strings.ToUpper(method), requestPath, nil)
+				invalid.Header.Set("Authorization", "Bearer invalid-token")
+				invalidResult := httptest.NewRecorder()
+				invalidTokenRouter.ServeHTTP(invalidResult, invalid)
+				if invalidResult.Code != http.StatusUnauthorized || !strings.Contains(invalidResult.Body.String(), `"code":"TOKEN_TIDAK_VALID"`) {
+					t.Fatalf("expected invalid-token 401, got %d: %s", invalidResult.Code, invalidResult.Body.String())
+				}
+			})
+		}
+	}
+	if protected == 0 {
+		t.Fatal("OpenAPI document did not contain protected operations")
+	}
+	for operation := range expectedPublic {
+		if !seenPublic[operation] {
+			t.Errorf("expected public operation is missing: %s", operation)
+		}
+	}
+}
+
+func TestPublicPathAllowlistIsExact(t *testing.T) {
+	for _, path := range []string{
+		apiPrefix + "/login",
+		apiPrefix + "/register",
+		apiPrefix + "/register/otp/confirm",
+		apiPrefix + "/register/otp/resend",
+		apiPrefix + "/docs",
+		apiPrefix + "/docs/",
+		apiPrefix + "/openapi.json",
+		apiPrefix + "/openapi.yaml",
+		apiPrefix + "/schemas/Example.json",
+	} {
+		if !isPublicPath(path) {
+			t.Errorf("expected public path: %s", path)
+		}
+	}
+	for _, path := range []string{
+		apiPrefix + "/login/admin",
+		apiPrefix + "/register/admin",
+		apiPrefix + "/register/otp/admin",
+		apiPrefix + "/openapi-private",
+		apiPrefix + "/schemas-private/Example.json",
+		apiPrefix + "/health",
+	} {
+		if isPublicPath(path) {
+			t.Errorf("lookalike path must remain protected: %s", path)
+		}
 	}
 }
 
