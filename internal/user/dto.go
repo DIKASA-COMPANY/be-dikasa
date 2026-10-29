@@ -21,7 +21,7 @@ type Profile struct {
 	FirstName         string  `json:"first_name"`
 	LastName          string  `json:"last_name"`
 	IsActive          bool    `json:"is_active"`
-	AvatarURL         *string `json:"avatar_url,omitempty" format:"uri" doc:"Firebase Storage download URL for direct client rendering"`
+	AvatarURL         *string `json:"avatar_url,omitempty" format:"uri" doc:"Supabase Storage public URL for direct client rendering"`
 }
 
 // ProfileResponse adalah envelope response profil user.

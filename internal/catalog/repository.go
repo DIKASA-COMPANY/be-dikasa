@@ -26,7 +26,7 @@ var (
 	ErrImageTooLarge = errors.New("image exceeds maximum size")
 	// ErrInvalidImage menandakan MIME, signature, extension, atau decode gambar tidak valid.
 	ErrInvalidImage = errors.New("image is not a valid png or jpeg")
-	// ErrStorage menandakan Firebase Storage gagal melakukan operasi.
+	// ErrStorage menandakan Supabase Storage gagal melakukan operasi.
 	ErrStorage = errors.New("image storage operation failed")
 )
 
@@ -52,7 +52,7 @@ type Repository interface {
 	SoftDeleteOrderType(context.Context, string, string) error
 }
 
-// ImageStore saves images and deletes them through their persisted Firebase URL.
+// ImageStore saves images and deletes them through their persisted Supabase URL.
 type ImageStore interface {
 	Save(context.Context, string, string, *ImageUpload) (*StoredImage, error)
 	Delete(context.Context, string) error

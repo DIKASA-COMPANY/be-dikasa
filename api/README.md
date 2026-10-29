@@ -9,9 +9,10 @@
 All application endpoints use the `/dikasa/v1` prefix. Login, registration,
 registration OTP confirmation/resend, Swagger, and OpenAPI are public. Other
 endpoints, including cash sessions, products, product categories, order types, tables, reservations, orders, and customers, require
-`Authorization: Bearer <access_token>` using a Firebase ID token. Login validates
-the PostgreSQL credential and exchanges a Firebase custom token for an ID token
-and refresh token. `firebase_uid` is the PostgreSQL user UUID.
+`Authorization: Bearer <access_token>` using a Supabase access token. Login validates
+the PostgreSQL credential, imports the existing UUID and bcrypt hash when needed,
+and returns a Supabase access/refresh session. `supabase_user_id` binds password or
+OAuth identities to the PostgreSQL user.
 
 The payment screen reads the current outlet tax from
 `GET /dikasa/v1/payments/tax-percentage`. The response contains only the
@@ -58,13 +59,15 @@ Account settings use `PATCH /users/me` for multipart profile/avatar changes,
 `PATCH /users/me/password` for password changes. Role and outlet are read-only.
 
 See the root `README.md` for the full local setup and Bruno walkthrough.
+Run `make migrate-supabase-users` after migration 000017 to import active bcrypt
+accounts in bulk; `/login` retains a rolling-migration fallback.
 
 Product photos and profile avatars are validated by the backend and uploaded to
-Firebase Storage. API responses contain Firebase download URLs that clients render
+Supabase Storage. API responses contain public bucket URLs that clients render
 directly; the API does not proxy image bytes. Cash proof uploads use the same mechanism,
 but their URL is returned only after the authenticated same-outlet proof lookup.
 PostgreSQL remains the primary database and persists only each resulting URL, never
-file bytes or a duplicate Firebase object key. Shared quantitative stock,
+file bytes or duplicate object metadata. Shared quantitative stock,
 deduplicated stock adjustments/history, and manager XLSX exports are described in
 [`docs/development/product-stock-and-images.md`](../docs/development/product-stock-and-images.md).
 Transactions now reject stale catalog/variant prices or unavailable stock with

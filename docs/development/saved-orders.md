@@ -1,6 +1,6 @@
 # Saved unpaid orders
 
-Cashiers and managers can park carts in PostgreSQL without Firebase. Orders are
+Cashiers and managers can park carts entirely in PostgreSQL. Orders are
 shared within the authenticated outlet, survive server/app restarts and do not
 reserve or deduct stock. Only successful payment changes inventory.
 

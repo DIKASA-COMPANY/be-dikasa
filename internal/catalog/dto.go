@@ -17,7 +17,7 @@ type ProductData struct {
 	LowStockThreshold    int64                `json:"low_stock_threshold" minimum:"0"`
 	EffectiveStockStatus string               `json:"effective_stock_status" enum:"available,low_stock,out_of_stock"`
 	Description          string               `json:"description"`
-	ImageURL             *string              `json:"image_url,omitempty" format:"uri" doc:"Firebase Storage download URL; render directly and do not proxy through the API"`
+	ImageURL             *string              `json:"image_url,omitempty" format:"uri" doc:"Supabase Storage public URL; render directly and do not proxy through the API"`
 	IsHighlighted        bool                 `json:"is_highlighted"`
 	SortOrder            int                  `json:"sort_order"`
 	IsActive             bool                 `json:"is_active"`

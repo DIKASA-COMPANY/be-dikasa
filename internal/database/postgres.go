@@ -1,4 +1,4 @@
-// Package database menginisialisasi PostgreSQL dan Firebase untuk aplikasi.
+// Package database menginisialisasi PostgreSQL untuk aplikasi.
 package database
 
 import (

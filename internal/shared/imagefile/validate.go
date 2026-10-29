@@ -16,7 +16,7 @@ import (
 	"strings"
 )
 
-// validate checks bounded image content before Firebase persistence.
+// validate checks bounded image content before Supabase Storage persistence.
 func validate(upload *Upload, policy Policy) ([]byte, string, string, error) {
 	if upload == nil || upload.Reader == nil {
 		return nil, "", "", ErrInvalid

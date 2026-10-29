@@ -1,6 +1,6 @@
 ---
 name: dikasa-backend-guardrails
-description: Build, change, or review the DIKASA Go backend while preserving its feature-based architecture, PostgreSQL persistence, Firebase-only media and notifications, Huma APIs, go-playground validation, tests, and synchronized API/architecture documentation. Use only for the be-dikasa backend repository.
+description: Build, change, or review the DIKASA Go backend while preserving its feature-based architecture, PostgreSQL persistence, Supabase Auth and Storage, Huma APIs, go-playground validation, tests, and synchronized API/architecture documentation. Use only for the be-dikasa backend repository.
 ---
 
 # DIKASA Backend Guardrails
@@ -18,10 +18,10 @@ Apply these invariants to every backend implementation and review in this reposi
 ## Required infrastructure
 
 - PostgreSQL is the primary database for identities, business data, and external-resource references. Read its DSN, including username and password, from `DATABASE_URL`; never hardcode credentials or commit secrets.
-- Use migrations for every schema change. Keep GORM models and SQL constraints aligned. PostgreSQL stores image URLs only, never image bytes or duplicate Firebase object metadata.
-- Use Firebase Authentication for runtime tokens and identity verification. Do not add a local-auth runtime mode.
-- Send application notifications only through Firebase Cloud Messaging. Initialize it from Firebase project credentials supplied through environment configuration/ADC, normally `FIREBASE_PROJECT_ID` and `GOOGLE_APPLICATION_CREDENTIALS`. Never hardcode or commit a Firebase server key. Add startup validation and `.env.example` documentation when new notification configuration is required.
-- Store every uploaded image only in Firebase Storage through the shared uploader. Read the bucket from `FIREBASE_STORAGE_BUCKET` and credentials from environment configuration/ADC. Validate the file with the shared image policy before upload, persist only the resulting Firebase URL in PostgreSQL, and return that URL for clients to render rather than proxying file bytes.
+- Use migrations for every schema change. Keep GORM models and SQL constraints aligned. PostgreSQL stores image URLs only, never image bytes or duplicate object metadata.
+- Use Supabase Auth for runtime tokens and identity verification. Keep provider identities bound through `users.supabase_user_id`; do not add a local-token runtime mode.
+- Read Supabase configuration only from `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, and `SUPABASE_STORAGE_BUCKET`. Never expose or commit the secret key.
+- Store every uploaded image only in Supabase Storage through the shared uploader. Require a public bucket, validate files with the shared image policy, persist only the resulting public URL in PostgreSQL, and return that URL for clients to render rather than proxying file bytes.
 - Keep object names tenant-scoped and collision-safe. Follow `outlets/{outlet_id}/<feature>/<resource_id>/<purpose>/{uuid}.{ext}` unless an established feature prefix is more specific.
 
 ## Test-first workflow
@@ -29,7 +29,7 @@ Apply these invariants to every backend implementation and review in this reposi
 1. Inspect the feature, tests, migration history, OpenAPI source/generator, Bruno collection, and ERD before editing.
 2. Add the smallest deterministic unit test first and run it to observe the intended failure.
 3. Implement only enough code to satisfy the behavior, then refactor while tests stay green.
-4. Fake Firebase, clocks, and repositories in unit tests; never call real Firebase, PostgreSQL, or notification services from unit tests.
+4. Fake Supabase, clocks, and repositories in unit tests; never call real Supabase or PostgreSQL services from unit tests.
 5. Cover success, invalid input, authorization/tenant isolation, storage/provider failure, and cleanup or transaction rollback where relevant.
 6. Run focused tests, `go generate ./internal/server`, `go test ./...`, `go vet ./...`, and `git diff --check`. Report any opt-in PostgreSQL integration test that could not run.
 

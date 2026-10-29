@@ -1,14 +1,14 @@
 # Dikasa Backend
 
-Product and avatar uploads use Firebase Storage exclusively. The backend validates
-the image, uploads it, and returns a Firebase download URL for clients to render.
+Product, avatar, and cash-proof uploads use Supabase Storage exclusively. The backend validates
+the image, uploads it, and returns a public bucket URL for clients to render.
 Shared stock tracking, manager inventory adjustments/history, variation-aware
 checkout validation and real XLSX exports are available. See
 [product images and stock setup](docs/development/product-stock-and-images.md).
 
 Dikasa Backend is a Go API for restaurant operations. The current implementation
 provides business-owner registration with email OTP verification, PostgreSQL
-credential validation, Firebase token issuance, authenticated POS catalogs,
+credential validation, Supabase Auth sessions and OAuth identity binding, authenticated POS catalogs,
 opening-cash sessions, outlet order types, and generated OpenAPI documentation.
 
 ## Contents
@@ -30,8 +30,8 @@ opening-cash sessions, outlet order types, and generated OpenAPI documentation.
 - Gin for HTTP routing and middleware
 - Huma for typed HTTP operations and OpenAPI generation
 - GORM with PostgreSQL
-- Firebase Authentication for ID and refresh tokens
-- Firebase Storage for every uploaded product, avatar, and cash-proof image
+- Supabase Auth for access/refresh tokens and Google/Facebook OAuth identities
+- Supabase Storage for every uploaded product, avatar, and cash-proof image
 - SMTP for registration OTP delivery
 - `go-playground/validator` for request validation
 - Bruno for manual API testing
@@ -40,17 +40,19 @@ opening-cash sessions, outlet order types, and generated OpenAPI documentation.
 ## How authentication works
 
 PostgreSQL is the primary database and source of truth for users, business data,
-password hashes, and Firebase image URLs. Firebase is used only for Authentication
-tokens and image object storage; it does not replace PostgreSQL business persistence.
+password hashes, Supabase identity bindings, and public image URLs. Supabase provides
+Auth and object storage; it does not replace PostgreSQL business persistence.
 
 The login flow is:
 
 1. The API finds the user in PostgreSQL by username, phone number, or email.
 2. The submitted password is compared with the PostgreSQL bcrypt hash.
-3. The API requests a Firebase custom token using `users.id` as the Firebase UID.
-4. The custom token is exchanged for a Firebase ID token and refresh token.
-5. Protected endpoints verify the Firebase ID token and use its UID to load the
-   PostgreSQL user.
+3. The API signs in through Supabase Auth. On the first login, an existing UUID and
+   bcrypt hash are imported without requiring a password reset.
+4. The API returns the Supabase access token, refresh token, and bound Auth user ID.
+5. Protected endpoints verify the access token with Supabase Auth and resolve
+   `users.supabase_user_id`. A confirmed Google/Facebook email may bind to an existing
+   active DIKASA account with the same unique email.
 
 The registration flow creates an inactive outlet and user. Both are activated
 only after the selected email address is verified with an OTP.
@@ -63,11 +65,11 @@ be-dikasa/
 │   ├── api/                    # Application entry point and dependency wiring
 │   └── openapi/                # OpenAPI generator
 ├── internal/
-│   ├── auth/                   # Login and Firebase token issuance
+│   ├── auth/                   # Login and Supabase account migration
 │   ├── cash/                   # Opening-cash sessions
 │   ├── catalog/                # Products, categories, order types, image storage
 │   ├── config/                 # Environment configuration
-│   ├── database/               # PostgreSQL and Firebase clients
+│   ├── database/               # PostgreSQL client
 │   ├── registration/           # Register, confirm OTP, resend OTP, and SMTP
 │   ├── server/                 # Gin/Huma router and authentication middleware
 │   ├── shared/                 # Shared errors, responses, and validation
@@ -90,10 +92,9 @@ Install or obtain access to:
 - Go 1.26.5 or the version declared in `go.mod`.
 - PostgreSQL and the `psql` command-line client.
 - Permission to enable the PostgreSQL `pgcrypto` extension.
-- A Firebase project with Firebase Authentication enabled.
-- A Firebase service-account JSON file for local Application Default
-  Credentials.
-- The Firebase Web API key for custom-token exchange.
+- A Supabase project with email/password Auth enabled and optional Google/Facebook providers.
+- A Supabase publishable key and server-only secret key.
+- A public Supabase Storage bucket, for example `dikasa-images`.
 - An SMTP account that can send OTP emails.
 - GNU Make, if you want to use the Makefile commands. Direct alternatives are
   included below.
@@ -120,16 +121,18 @@ postgres://dikasa:password@localhost:5432/dikasa?sslmode=disable
 
 Do not use the example password in shared or production environments.
 
-### 3. Prepare Firebase
+### 3. Prepare Supabase
 
-From the Firebase project used by your team:
+From the Supabase project used by your team:
 
-1. Enable Firebase Authentication.
-2. Obtain the Firebase project ID and Web API key.
-3. Download a service-account JSON file for local development.
-4. Store the JSON outside the repository. Never commit it.
+1. Copy the Project URL from **Project Settings → API**.
+2. Create/copy a publishable key and a server-only secret key. Never expose the secret key to mobile or web clients.
+3. Create a public Storage bucket such as `dikasa-images`.
+4. Enable email/password Auth. Configure Google and Facebook in **Authentication → Providers** when required.
+5. Add the frontend callback URLs to the Supabase Auth redirect allowlist.
 
-The Firebase UID is intentionally the same UUID as `users.id` in PostgreSQL.
+Password accounts preserve `users.id` when imported. OAuth accounts can use a different
+Supabase UUID, stored in `users.supabase_user_id`.
 
 ### 4. Configure email delivery
 
@@ -148,10 +151,10 @@ PowerShell example:
 ```powershell
 $env:PORT = "8080"
 $env:DATABASE_URL = "postgres://dikasa:password@localhost:5432/dikasa?sslmode=disable"
-$env:FIREBASE_PROJECT_ID = "your-firebase-project-id"
-$env:FIREBASE_WEB_API_KEY = "your-firebase-web-api-key"
-$env:FIREBASE_STORAGE_BUCKET = "your-firebase-project-id.firebasestorage.app"
-$env:GOOGLE_APPLICATION_CREDENTIALS = "C:\secure\firebase-service-account.json"
+$env:SUPABASE_URL = "https://your-project-ref.supabase.co"
+$env:SUPABASE_PUBLISHABLE_KEY = "sb_publishable_replace_me"
+$env:SUPABASE_SECRET_KEY = "sb_secret_replace_me"
+$env:SUPABASE_STORAGE_BUCKET = "dikasa-images"
 $env:OTP_SECRET = "replace-with-a-random-secret-of-at-least-32-characters"
 $env:SMTP_HOST = "smtp.example.com"
 $env:SMTP_PORT = "587"
@@ -165,10 +168,10 @@ Bash example:
 ```bash
 export PORT='8080'
 export DATABASE_URL='postgres://dikasa:password@localhost:5432/dikasa?sslmode=disable'
-export FIREBASE_PROJECT_ID='your-firebase-project-id'
-export FIREBASE_WEB_API_KEY='your-firebase-web-api-key'
-export FIREBASE_STORAGE_BUCKET='your-firebase-project-id.firebasestorage.app'
-export GOOGLE_APPLICATION_CREDENTIALS='/secure/firebase-service-account.json'
+export SUPABASE_URL='https://your-project-ref.supabase.co'
+export SUPABASE_PUBLISHABLE_KEY='sb_publishable_replace_me'
+export SUPABASE_SECRET_KEY='sb_secret_replace_me'
+export SUPABASE_STORAGE_BUCKET='dikasa-images'
 export OTP_SECRET='replace-with-a-random-secret-of-at-least-32-characters'
 export SMTP_HOST='smtp.example.com'
 export SMTP_PORT='587'
@@ -178,7 +181,7 @@ export SMTP_FROM='Dikasa <mailer@example.com>'
 ```
 
 `OTP_SECRET` must be at least 32 characters and must be different for each
-environment. Never commit real database, Firebase, SMTP, or OTP credentials.
+environment. Never commit real database, Supabase secret, SMTP, or OTP credentials.
 
 ### 6. Run database migrations
 
@@ -196,6 +199,9 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000002_add_registration_ot
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000003_create_cash_sessions.up.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000004_create_catalog.up.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/000005_add_user_profile_avatar.up.sql
+# Continue in numeric order through:
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/000016_store_only_image_urls.up.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f migrations/000017_add_supabase_identity.up.sql
 ```
 
 PowerShell users can replace `"$DATABASE_URL"` with `$env:DATABASE_URL`.
@@ -207,9 +213,22 @@ hashes. OTP values are stored as HMAC-SHA256 hashes and are never persisted as
 plaintext. Opening cash is stored as a whole-Rupiah integer per outlet cash
 session, with at most one open session per outlet.
 
-Firebase Storage is mandatory at startup. Images are limited to 3 MiB and validated
-as real PNG/JPEG content before upload. Product and profile responses return Firebase
-download URLs; frontends render those URLs directly. PINs use six digits, and both
+Migration 000017 refuses to proceed while product, avatar, or cash-proof rows still
+contain non-Supabase URLs. Re-upload those objects first so the database cannot retain
+stale provider links. After the migration and Supabase environment variables are ready,
+import every active email account while preserving UUIDs and bcrypt hashes:
+
+```bash
+make migrate-supabase-users
+```
+
+The command is safe to resume: already bound accounts are skipped. If an exact-email
+Google/Facebook identity already exists, it is linked instead of creating a duplicate.
+The `/login` endpoint also performs the same migration lazily as a fallback.
+
+Supabase Storage is mandatory at startup and the configured bucket must be public.
+Images are limited to 3 MiB and validated as real PNG/JPEG content before upload.
+Product and profile responses return public URLs; frontends render those URLs directly. PINs use six digits, and both
 PINs and passwords are persisted only as bcrypt hashes.
 
 ## Running the API
@@ -289,33 +308,33 @@ All application routes use the `/dikasa/v1` prefix.
 | `POST` | `/register` | Public | Create an inactive outlet/user and send an OTP |
 | `POST` | `/register/otp/resend` | Public | Rotate and resend a registration OTP |
 | `POST` | `/register/otp/confirm` | Public | Verify the OTP and activate the outlet/user |
-| `POST` | `/login` | Public | Validate PostgreSQL credentials and issue Firebase tokens |
-| `GET` | `/users/me` | Firebase Bearer token | Return the authenticated PostgreSQL profile |
-| `PATCH` | `/users/me` | Firebase Bearer token | Partially update name, phone, email, or profile avatar |
-| `PATCH` | `/users/me/pin` | Firebase Bearer token | Set or change the six-digit account PIN |
-| `PATCH` | `/users/me/password` | Firebase Bearer token | Verify the current password and set a new password |
-| `POST` | `/cash-sessions` | Firebase Bearer token | Open the outlet cash session with an opening-cash amount |
-| `GET` | `/cash-sessions/current` | Firebase Bearer token | Return the outlet's active cash session |
-| `GET` | `/payments/tax-percentage` | Firebase Bearer token | Return only the current outlet tax percentage for frontend payment calculation |
+| `POST` | `/login` | Public | Validate PostgreSQL credentials and issue Supabase tokens |
+| `GET` | `/users/me` | Supabase Bearer token | Return the authenticated PostgreSQL profile |
+| `PATCH` | `/users/me` | Supabase Bearer token | Partially update name, phone, email, or profile avatar |
+| `PATCH` | `/users/me/pin` | Supabase Bearer token | Set or change the six-digit account PIN |
+| `PATCH` | `/users/me/password` | Supabase Bearer token | Verify the current password and set a new password |
+| `POST` | `/cash-sessions` | Supabase Bearer token | Open the outlet cash session with an opening-cash amount |
+| `GET` | `/cash-sessions/current` | Supabase Bearer token | Return the outlet's active cash session |
+| `GET` | `/payments/tax-percentage` | Supabase Bearer token | Return only the current outlet tax percentage for frontend payment calculation |
 | `GET/POST` | `/wallets` | User / Manager | List active wallet options or create an outlet wallet |
 | `PATCH/DELETE` | `/wallets/{wallet_id}` | Manager | Update or soft-delete an outlet wallet |
 | `POST` | `/transactions` | User outlet with active cash session | Atomically save the paid transaction and all product snapshots |
-| `GET` | `/orders` | Firebase Bearer token | List outlet orders with receipt/customer search, type/status filters, and pagination |
-| `GET` | `/customers` | Firebase Bearer token | List active registered customers with search, gender filter, and pagination |
-| `GET` | `/product-types` | Firebase Bearer token | Return Food, Drink, and Additional tabs |
-| `GET` | `/products` | Firebase Bearer token | Return outlet products with category, type, search, and pagination filters |
-| `GET` | `/products/{product_id}` | Firebase Bearer token | Return one outlet product |
+| `GET` | `/orders` | Supabase Bearer token | List outlet orders with receipt/customer search, type/status filters, and pagination |
+| `GET` | `/customers` | Supabase Bearer token | List active registered customers with search, gender filter, and pagination |
+| `GET` | `/product-types` | Supabase Bearer token | Return Food, Drink, and Additional tabs |
+| `GET` | `/products` | Supabase Bearer token | Return outlet products with category, type, search, and pagination filters |
+| `GET` | `/products/{product_id}` | Supabase Bearer token | Return one outlet product |
 | `POST/PATCH/DELETE` | `/products` and `/products/{product_id}` | Manager | Manage products with soft delete |
 | `GET/POST` | `/product-types/{product_type}/categories` | User / Manager | List or create outlet categories for a product type |
 | `PATCH/DELETE` | `/product-types/{product_type}/categories/{category_id}` | Manager | Update or soft-delete a category |
 | `GET/POST` | `/order-types` | User / Manager | List or create outlet order types |
 | `PATCH/DELETE` | `/order-types/{order_type_id}` | Manager | Update or soft-delete an order type |
-| `GET` | `/reservation-types` | Firebase Bearer token | Return the seeded reservation-type dropdown |
-| `GET` | `/restaurant-tables` | Firebase Bearer token | Return active outlet tables; optionally filter availability by `reservation_at` |
+| `GET` | `/reservation-types` | Supabase Bearer token | Return the seeded reservation-type dropdown |
+| `GET` | `/restaurant-tables` | Supabase Bearer token | Return active outlet tables; optionally filter availability by `reservation_at` |
 | `POST/PATCH/DELETE` | `/restaurant-tables` and `/restaurant-tables/{table_id}` | Manager | Configure outlet tables with soft delete |
 | `GET/POST` | `/reservations` | User outlet | List or create outlet reservations |
 | `GET/PATCH/DELETE` | `/reservations/{reservation_id}` | User outlet | Read, update, or cancel an outlet reservation |
-| `GET` | `/health` | Firebase Bearer token | Confirm the authenticated API path is healthy |
+| `GET` | `/health` | Supabase Bearer token | Confirm the authenticated API path is healthy |
 | `GET` | `/docs` | Public | Serve Swagger UI |
 | `GET` | `/openapi.yaml` | Public | Serve the generated OpenAPI document |
 
@@ -446,16 +465,15 @@ variables during startup. Compare your configuration with `.env.example` or
 The database user must be allowed to create or use the `pgcrypto` extension.
 Ask the database administrator to enable it when using a managed database.
 
-### Firebase initialization fails
+### Supabase initialization fails
 
-Check `FIREBASE_PROJECT_ID` and verify that
-`GOOGLE_APPLICATION_CREDENTIALS` points to a readable service-account JSON file
-for the same project.
+Check `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY`. Confirm
+that `SUPABASE_STORAGE_BUCKET` exists in the same project and is public.
 
-### Login returns a Firebase provider error
+### Login returns a Supabase provider error
 
-Check `FIREBASE_WEB_API_KEY`, confirm that Firebase Authentication is enabled,
-and confirm that the service account can create custom tokens.
+Confirm that email/password Auth is enabled and that the server-only secret key can
+call the Auth Admin API. Never place the secret key in a client application.
 
 ### Registration returns `EMAIL_GAGAL_DIKIRIM`
 
@@ -467,7 +485,7 @@ email.
 ### Protected requests return HTTP 401
 
 Run **Login** in Bruno again and make sure the selected environment contains a
-non-empty `accessToken`. Firebase ID tokens expire and must be refreshed or
+non-empty `accessToken`. Supabase access tokens expire and must be refreshed or
 issued again.
 
 ### Registration returns HTTP 409
@@ -494,28 +512,30 @@ Four sales reports and XLSX: [Reporting guide](docs/development/sales-reports.md
 
 ## Account settings (24 October 2026)
 
-The cashier menu's **Pengaturan Akun** supports self-profile details, Firebase profile
+The cashier menu's **Pengaturan Akun** supports self-profile details, Supabase profile
 photos, PIN setup/change and PostgreSQL password changes. Restart the backend and
 Flutter after updating. Migration000014 (nullable personal address) is already
 applied in this workspace's local database. Fresh installs must also apply
 `migrations/000014_add_user_personal_address.up.sql` in the backend after000013.
 
 Photos are stored under `outlets/{outlet_id}/users/{user_id}/avatar/` in the configured
-Firebase bucket. Password changes update the PostgreSQL credential used by `/login`
-and do not revoke Firebase tokens already issued.
+Supabase bucket. Password changes update the PostgreSQL credential used by `/login`;
+the bcrypt hash is synchronized to Supabase Auth on the next password login and does
+not revoke access tokens already issued.
 
 
 ## Cash-in/out and till activity (24 October2026)
 
 Restart the backend and Flutter, then choose **Menu → Kas Kasir / Uang Masuk-Keluar**.
 The opening cashier or manager may record movements; authenticated outlet staff
-can read history. Optional evidence uses the same Firebase upload mechanism as product
+can read history. Optional evidence uses the same Supabase upload mechanism as product
 and avatar images. PostgreSQL stores only the resulting URL; authorized users obtain
 that URL through the protected proof endpoint and the frontend renders it directly.
 
 Fresh backend installs must apply `migrations/000015_create_cash_movements.up.sql`
-after 000014, followed by `migrations/000016_store_only_firebase_image_urls.up.sql`.
-Migration 000016 removes duplicate Firebase object metadata so PostgreSQL retains
+after 000014, followed by `migrations/000016_store_only_image_urls.up.sql` and
+`migrations/000017_add_supabase_identity.up.sql`. Migration 000016 removes duplicate
+object metadata so PostgreSQL retains
 only `image_url`, `avatar_url`, and `proof_url`. It refuses to run while legacy local
 product/avatar URLs or local cash-proof object keys still require migration. No real
 cash record or till closure was created during verification. Existing frozen

@@ -138,7 +138,7 @@ func TestAccountSettingsPostgres(t *testing.T) {
 		t.Fatal("credential CAS winners", wins)
 	}
 	// A stale photo mutation must neither overwrite the winning reference nor lose disjoint text.
-	photo := "https://firebasestorage.googleapis.com/v0/b/test/o/avatar.png?alt=media&token=test"
+	photo := "https://project.supabase.co/storage/v1/object/public/dikasa-images/avatar.png"
 	db.Model(&user.User{}).Where("id = ?", a.ID).Update("avatar_url", photo)
 	_, e = repo.PatchProfile(ctx, p, user.ProfileMutation{RemoveAvatar: true, Fields: map[string]bool{"remove_avatar": true}}, nil)
 	if !errors.Is(e, user.ErrConflict) {

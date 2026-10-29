@@ -67,7 +67,8 @@ func NewRouter(dependencies Dependencies) *gin.Engine {
 	// Fail before invoking registration handlers, so no inactive accounts or OTPs are stored.
 	if dependencies.RegistrationDisabled {
 		router.Use(func(c *gin.Context) {
-			if c.Request.URL.Path == apiPrefix+"/register" || strings.HasPrefix(c.Request.URL.Path, apiPrefix+"/register/otp/") {
+			path := c.Request.URL.Path
+			if path == apiPrefix+"/register" || path == apiPrefix+"/register/otp/confirm" || path == apiPrefix+"/register/otp/resend" {
 				sharedresponse.WriteError(c.Writer, sharederrors.New(http.StatusServiceUnavailable, "REGISTRASI_DINONAKTIFKAN", "Registrasi email belum tersedia. Gunakan akun pengembangan lokal.", nil))
 				c.Abort()
 				return
@@ -106,11 +107,11 @@ func NewRouter(dependencies Dependencies) *gin.Engine {
 	configuration.Transformers = nil
 	configuration.CreateHooks = nil
 	configuration.Servers = []*huma.Server{{URL: apiPrefix, Description: "API Dikasa"}}
-	configuration.Security = []map[string][]string{{"firebaseBearer": {}}}
+	configuration.Security = []map[string][]string{{"supabaseBearer": {}}}
 	configuration.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
-		"firebaseBearer": {
+		"supabaseBearer": {
 			Type: "http", Scheme: "bearer", BearerFormat: "JWT",
-			Description: "Gunakan Firebase ID token pada access_token dari /login.",
+			Description: "Gunakan Supabase access token dari /login atau alur OAuth Supabase.",
 		},
 	}
 	configuration.RejectUnknownQueryParameters = true
@@ -186,10 +187,20 @@ func health(_ context.Context, _ *struct{}) (*healthOutput, error) {
 }
 
 func isPublicPath(path string) bool {
-	if path == apiPrefix+"/login" || path == apiPrefix+"/register" || strings.HasPrefix(path, apiPrefix+"/register/otp/") || path == apiPrefix+"/docs" || path == apiPrefix+"/docs/" {
+	switch path {
+	case apiPrefix + "/login",
+		apiPrefix + "/register",
+		apiPrefix + "/register/otp/confirm",
+		apiPrefix + "/register/otp/resend",
+		apiPrefix + "/docs",
+		apiPrefix + "/docs/",
+		apiPrefix + "/openapi",
+		apiPrefix + "/openapi.json",
+		apiPrefix + "/openapi.yaml":
 		return true
 	}
-	return strings.HasPrefix(path, apiPrefix+"/openapi") || strings.HasPrefix(path, apiPrefix+"/schemas/")
+	schema, found := strings.CutPrefix(path, apiPrefix+"/schemas/")
+	return found && schema != "" && !strings.Contains(schema, "/") && strings.HasSuffix(schema, ".json")
 }
 
 func configureHumaErrors() {

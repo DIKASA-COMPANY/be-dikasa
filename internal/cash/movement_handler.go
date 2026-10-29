@@ -73,7 +73,7 @@ type MovementDetailOutput struct {
 // MovementActivityOutput preserves full-session totals outside pagination.
 type MovementActivityOutput struct{ Body ActivityPage }
 
-// MovementProofOutput returns the authorized Firebase download URL.
+// MovementProofOutput returns the authorized Supabase Storage public URL.
 type MovementProofOutput struct {
 	Body struct {
 		Data ProofLink `json:"data"`
@@ -190,7 +190,7 @@ func (h *MovementHandler) ByRequest(ctx context.Context, in *MovementRequestInpu
 	return o, nil
 }
 
-// Proof authorizes the event before returning its Firebase download URL.
+// Proof authorizes the event before returning its Supabase Storage public URL.
 func (h *MovementHandler) Proof(ctx context.Context, in *MovementIDInput) (*MovementProofOutput, error) {
 	a, e := closingIdentity(ctx)
 	if e != nil {
