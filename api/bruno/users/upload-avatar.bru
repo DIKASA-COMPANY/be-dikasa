@@ -1,7 +1,7 @@
 meta {
-  name: Upload My Supabase Avatar
+  name: Adopt My Supabase Avatar
   type: http
-  seq: 24
+  seq: 27
 }
 
 patch {
@@ -15,7 +15,7 @@ auth:bearer {
 }
 
 body:multipart-form {
-  avatar: @file({{profileImagePath}})
+  avatar_object_name: {{avatarObjectName}}
   remove_avatar: false
 }
 
@@ -31,5 +31,5 @@ tests {
 }
 
 docs {
-  The backend validates and uploads the avatar to Supabase Storage. The response contains the public bucket URL; clients render that URL directly.
+  First create an avatar upload intent, PUT the PNG/JPEG bytes directly to avatarUploadUrl, then send its exact avatarObjectName here. The backend revalidates the stored object before persisting its public URL.
 }

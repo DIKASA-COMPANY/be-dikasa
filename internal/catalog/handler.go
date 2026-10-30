@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	sharederrors "be-dikasa/internal/shared/errors"
+	"be-dikasa/internal/shared/supabasestorage"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
 )
@@ -15,6 +16,7 @@ type Provider interface {
 	ListProductTypes(context.Context, string) ([]ProductType, error)
 	ListProducts(context.Context, string, ProductFilter) ([]Product, int64, error)
 	GetProduct(context.Context, string, string, bool) (*Product, error)
+	PrepareProductImageUpload(context.Context, string, string, int64) (supabasestorage.SignedUpload, error)
 	CreateProduct(context.Context, string, ProductMutation) (*Product, error)
 	UpdateProduct(context.Context, string, string, ProductMutation) (*Product, error)
 	DeleteProduct(context.Context, string, string) error
@@ -101,7 +103,7 @@ func productMutation(input *ProductCreateInput) ProductMutation {
 	form := input.RawBody.Data()
 	mutation := ProductMutation{Name: form.Name, CategoryID: form.CategoryID, ProductType: form.ProductType, Price: form.SellingPrice,
 		StockStatus: form.StockStatus, Variations: variantMutations(form.Variations), Description: form.Description,
-		IsHighlighted: form.IsHighlighted, SortOrder: form.SortOrder, IsActive: form.IsActive, RemoveImage: form.RemoveImage}
+		IsHighlighted: form.IsHighlighted, SortOrder: form.SortOrder, IsActive: form.IsActive, RemoveImage: form.RemoveImage, ImageObjectName: form.ImageObjectName}
 	if input.RawBody.Form != nil {
 		if _, ok := input.RawBody.Form.Value["online_selling_price"]; ok {
 			mutation.OnlineSellingPrice = &form.OnlineSellingPrice
@@ -112,9 +114,6 @@ func productMutation(input *ProductCreateInput) ProductMutation {
 		if _, ok := input.RawBody.Form.Value["online_cost_price"]; ok {
 			mutation.OnlineCostPrice = &form.OnlineCostPrice
 		}
-	}
-	if form.Image.IsSet {
-		mutation.Image = &ImageUpload{Reader: form.Image.File, Size: form.Image.Size, ContentType: form.Image.ContentType, Filename: form.Image.Filename}
 	}
 	return mutation
 }
@@ -129,7 +128,7 @@ func productPatchMutation(input *ProductMutationInput) ProductMutation {
 	}
 	mutation := ProductMutation{Name: form.Name, CategoryID: form.CategoryID, ProductType: form.ProductType, Price: form.SellingPrice,
 		StockStatus: form.StockStatus, Variations: variantMutations(form.Variations), Description: form.Description,
-		IsHighlighted: form.IsHighlighted, SortOrder: form.SortOrder, IsActive: form.IsActive, RemoveImage: form.RemoveImage, Fields: fields}
+		IsHighlighted: form.IsHighlighted, SortOrder: form.SortOrder, IsActive: form.IsActive, RemoveImage: form.RemoveImage, ImageObjectName: form.ImageObjectName, Fields: fields}
 	if fields["online_selling_price"] {
 		mutation.OnlineSellingPrice = &form.OnlineSellingPrice
 	}
@@ -142,10 +141,22 @@ func productPatchMutation(input *ProductMutationInput) ProductMutation {
 	if fields["selling_price"] {
 		fields["price"] = true
 	}
-	if form.Image.IsSet {
-		mutation.Image = &ImageUpload{Reader: form.Image.File, Size: form.Image.Size, ContentType: form.Image.ContentType, Filename: form.Image.Filename}
-	}
 	return mutation
+}
+
+// PrepareProductImageUpload creates an authorized signed URL without receiving image bytes.
+func (handler *Handler) PrepareProductImageUpload(ctx context.Context, input *ProductImageUploadIntentInput) (*ProductImageUploadIntentOutput, error) {
+	userID, err := authenticated(ctx)
+	if err != nil {
+		return nil, err
+	}
+	intent, err := handler.provider.PrepareProductImageUpload(ctx, userID, input.Body.ContentType, input.Body.Size)
+	if err != nil {
+		return nil, catalogStatusError(err)
+	}
+	output := &ProductImageUploadIntentOutput{}
+	output.Body.Data = ProductImageUploadIntentData{ObjectName: intent.ObjectName, UploadURL: intent.UploadURL, ExpiresIn: intent.ExpiresIn}
+	return output, nil
 }
 
 // CreateProduct melayani pembuatan produk multipart oleh manager.

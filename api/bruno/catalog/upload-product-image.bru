@@ -1,5 +1,5 @@
 meta {
-  name: Upload Product Photo (Manager)
+  name: Adopt Uploaded Product Photo (Manager)
   type: http
   seq: 55
 }
@@ -12,8 +12,12 @@ auth:bearer {
   token: {{accessToken}}
 }
 body:multipart-form {
-  image: @file({{productImagePath}})
+  image_object_name: {{productImageObjectName}}
   remove_image: false
+}
+
+docs {
+  First create an image upload intent, PUT the PNG/JPEG bytes directly to productImageUploadUrl, then send its exact productImageObjectName here. The DIKASA API never receives image bytes.
 }
 assert {
   res.status: eq 200

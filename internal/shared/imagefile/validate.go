@@ -90,6 +90,28 @@ var ErrInvalid = errors.New("invalid image")
 // ErrTooLarge denotes an encoded size beyond policy.
 var ErrTooLarge = errors.New("image too large")
 
+// ValidateIntent checks untrusted upload hints before a signed URL is issued.
+func ValidateIntent(contentType string, size int64, policy Policy) (string, error) {
+	if policy.MaxBytes < 1 || size < 1 {
+		return "", ErrInvalid
+	}
+	if size > policy.MaxBytes {
+		return "", ErrTooLarge
+	}
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return "", ErrInvalid
+	}
+	switch mediaType {
+	case "image/png":
+		return ".png", nil
+	case "image/jpeg":
+		return ".jpg", nil
+	default:
+		return "", ErrInvalid
+	}
+}
+
 // Image holds unchanged validated bytes and safe metadata.
 type Image struct {
 	Bytes                          []byte

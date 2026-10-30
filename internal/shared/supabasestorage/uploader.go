@@ -2,6 +2,7 @@
 package supabasestorage
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,7 +19,27 @@ var (
 	ErrInvalidURL = errors.New("invalid Supabase Storage public URL")
 	// ErrStorage indicates a Supabase Storage transport or API failure.
 	ErrStorage = errors.New("Supabase Storage operation failed")
+	// ErrObjectNotFound indicates that a completion references an object that was not uploaded.
+	ErrObjectNotFound = errors.New("Supabase Storage object not found")
+	// ErrObjectTooLarge indicates that a stored object exceeds the bounded completion download.
+	ErrObjectTooLarge = errors.New("Supabase Storage object exceeds limit")
 )
+
+const signedUploadExpiresIn = 2 * 60 * 60
+
+// SignedUpload contains temporary client upload material without server credentials.
+type SignedUpload struct {
+	ObjectName string
+	UploadURL  string
+	ExpiresIn  int
+}
+
+// Object contains one bounded stored object for server-side completion validation.
+type Object struct {
+	Body        io.ReadCloser
+	ContentType string
+	Size        int64
+}
 
 // Option customizes Uploader dependencies.
 type Option func(*Uploader)
@@ -32,7 +53,7 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-// Uploader uploads validated images to one public Supabase Storage bucket.
+// Uploader signs, inspects, and deletes images in one public Supabase Storage bucket.
 type Uploader struct {
 	projectURL *url.URL
 	bucket     string
@@ -85,25 +106,89 @@ func (uploader *Uploader) VerifyBucket(ctx context.Context) error {
 	return nil
 }
 
-// Upload stores an object without overwriting and returns its stable public URL.
-func (uploader *Uploader) Upload(ctx context.Context, objectName string, source io.Reader, contentType string) (string, error) {
+// CreateSignedUpload creates a non-upsert Supabase URL that uploads one server-generated object.
+func (uploader *Uploader) CreateSignedUpload(ctx context.Context, objectName string) (SignedUpload, error) {
 	escapedObject, err := escapedObjectName(objectName)
 	if err != nil {
-		return "", err
+		return SignedUpload{}, err
 	}
-	endpoint := "/storage/v1/object/" + url.PathEscape(uploader.bucket) + "/" + escapedObject
-	request, err := uploader.newRequest(ctx, http.MethodPost, endpoint, source, contentType)
+	endpoint := "/storage/v1/object/upload/sign/" + url.PathEscape(uploader.bucket) + "/" + escapedObject
+	request, err := uploader.newRequest(ctx, http.MethodPost, endpoint, strings.NewReader("{}"), "application/json")
 	if err != nil {
-		return "", err
+		return SignedUpload{}, err
 	}
-	request.Header.Set("x-upsert", "false")
 	response, err := uploader.httpClient.Do(request)
 	if err != nil {
-		return "", fmt.Errorf("%w: upload object: %v", ErrStorage, err)
+		return SignedUpload{}, fmt.Errorf("%w: create signed upload: %v", ErrStorage, err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", fmt.Errorf("%w: upload status %d", ErrStorage, response.StatusCode)
+		return SignedUpload{}, fmt.Errorf("%w: create signed upload status %d", ErrStorage, response.StatusCode)
+	}
+	var body struct {
+		URL string `json:"url"`
+	}
+	if err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&body); err != nil {
+		return SignedUpload{}, fmt.Errorf("%w: decode signed upload", ErrStorage)
+	}
+	reference, err := url.Parse(strings.TrimSpace(body.URL))
+	if err != nil || reference.IsAbs() || reference.Host != "" || reference.User != nil || reference.Fragment != "" || !strings.HasPrefix(reference.EscapedPath(), "/object/upload/sign/") {
+		return SignedUpload{}, fmt.Errorf("%w: invalid signed upload URL", ErrStorage)
+	}
+	target, err := url.Parse(strings.TrimRight(uploader.projectURL.String(), "/") + "/storage/v1" + reference.String())
+	if err != nil {
+		return SignedUpload{}, fmt.Errorf("%w: invalid signed upload URL", ErrStorage)
+	}
+	expectedPath := strings.TrimRight(uploader.projectURL.EscapedPath(), "/") + "/storage/v1/object/upload/sign/" + url.PathEscape(uploader.bucket) + "/" + escapedObject
+	if target.Scheme != uploader.projectURL.Scheme || target.Host != uploader.projectURL.Host || target.User != nil || target.Fragment != "" || target.EscapedPath() != expectedPath || target.Query().Get("token") == "" {
+		return SignedUpload{}, fmt.Errorf("%w: untrusted signed upload URL", ErrStorage)
+	}
+	return SignedUpload{ObjectName: objectName, UploadURL: target.String(), ExpiresIn: signedUploadExpiresIn}, nil
+}
+
+// Download reads one stored object through server credentials with a strict byte limit.
+func (uploader *Uploader) Download(ctx context.Context, objectName string, maxBytes int64) (Object, error) {
+	if maxBytes < 1 {
+		return Object{}, ErrObjectTooLarge
+	}
+	escapedObject, err := escapedObjectName(objectName)
+	if err != nil {
+		return Object{}, err
+	}
+	endpoint := "/storage/v1/object/" + url.PathEscape(uploader.bucket) + "/" + escapedObject
+	request, err := uploader.newRequest(ctx, http.MethodGet, endpoint, nil, "")
+	if err != nil {
+		return Object{}, err
+	}
+	response, err := uploader.httpClient.Do(request)
+	if err != nil {
+		return Object{}, fmt.Errorf("%w: download object: %v", ErrStorage, err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusNotFound {
+		return Object{}, ErrObjectNotFound
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return Object{}, fmt.Errorf("%w: download status %d", ErrStorage, response.StatusCode)
+	}
+	if response.ContentLength > maxBytes {
+		return Object{}, ErrObjectTooLarge
+	}
+	content, err := io.ReadAll(io.LimitReader(response.Body, maxBytes+1))
+	if err != nil {
+		return Object{}, fmt.Errorf("%w: read object", ErrStorage)
+	}
+	if int64(len(content)) > maxBytes {
+		return Object{}, ErrObjectTooLarge
+	}
+	return Object{Body: io.NopCloser(bytes.NewReader(content)), ContentType: response.Header.Get("Content-Type"), Size: int64(len(content))}, nil
+}
+
+// PublicURL constructs the stable URL for a validated object in the configured public bucket.
+func (uploader *Uploader) PublicURL(objectName string) (string, error) {
+	escapedObject, err := escapedObjectName(objectName)
+	if err != nil {
+		return "", err
 	}
 	return strings.TrimRight(uploader.projectURL.String(), "/") + "/storage/v1/object/public/" + url.PathEscape(uploader.bucket) + "/" + escapedObject, nil
 }

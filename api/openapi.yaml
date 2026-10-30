@@ -49,6 +49,48 @@ components:
         - data
         - meta
       type: object
+    AvatarUploadIntentData:
+      additionalProperties: false
+      properties:
+        expires_in:
+          format: int64
+          minimum: 1
+          type: integer
+        object_name:
+          type: string
+        upload_url:
+          format: uri
+          type: string
+      required:
+        - object_name
+        - upload_url
+        - expires_in
+      type: object
+    AvatarUploadIntentOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/AvatarUploadIntentData"
+      required:
+        - data
+      type: object
+    AvatarUploadIntentRequest:
+      additionalProperties: false
+      properties:
+        content_type:
+          enum:
+            - image/png
+            - image/jpeg
+          type: string
+        size:
+          description: Declared byte size; values above 3145728 return 413.
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+        - content_type
+        - size
+      type: object
     Body:
       additionalProperties: false
       properties:
@@ -1488,6 +1530,49 @@ components:
         - product_type
         - variations
       type: object
+    ProductImageUploadIntentData:
+      additionalProperties: false
+      properties:
+        expires_in:
+          description: Masa berlaku signed upload URL dalam detik.
+          format: int64
+          minimum: 1
+          type: integer
+        object_name:
+          type: string
+        upload_url:
+          format: uri
+          type: string
+      required:
+        - object_name
+        - upload_url
+        - expires_in
+      type: object
+    ProductImageUploadIntentOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/ProductImageUploadIntentData"
+      required:
+        - data
+      type: object
+    ProductImageUploadIntentRequest:
+      additionalProperties: false
+      properties:
+        content_type:
+          enum:
+            - image/png
+            - image/jpeg
+          type: string
+        size:
+          description: Declared byte size; values above 3145728 return 413.
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+        - content_type
+        - size
+      type: object
     ProductOutputBody:
       additionalProperties: false
       properties:
@@ -1704,6 +1789,52 @@ components:
           type: string
       required:
         - url
+      type: object
+    ProofUploadIntentData:
+      additionalProperties: false
+      properties:
+        expires_in:
+          format: int64
+          minimum: 1
+          type: integer
+        object_name:
+          type: string
+        upload_url:
+          format: uri
+          type: string
+      required:
+        - object_name
+        - upload_url
+        - expires_in
+      type: object
+    ProofUploadIntentOutputBody:
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/ProofUploadIntentData"
+      required:
+        - data
+      type: object
+    ProofUploadIntentRequest:
+      additionalProperties: false
+      properties:
+        content_type:
+          enum:
+            - image/png
+            - image/jpeg
+          type: string
+        request_id:
+          format: uuid
+          type: string
+        size:
+          description: Declared byte size; values above 3145728 return 413.
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+        - request_id
+        - content_type
+        - size
       type: object
     ReceiptItem:
       additionalProperties: false
@@ -3498,9 +3629,90 @@ paths:
       summary: Pratinjau hitungan kas
       tags:
         - Sesi Kas
+  /cash-sessions/{session_id}/movement-proof-upload-intents:
+    post:
+      description: Kasir pembuka atau manager pada sesi terbuka. Backend mengikat object_name ke aktor, outlet, sesi, dan request_id; client upload langsung ke Supabase lalu mengirim proof_object_name saat membuat movement.
+      operationId: create-cash-proof-upload-intent
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProofUploadIntentRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProofUploadIntentOutputBody"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Buat signed upload URL bukti kas
+      tags:
+        - Kas Kasir
   /cash-sessions/{session_id}/movements:
     post:
-      description: "Kasir pembuka atau manager. UUID terikat aktor/sesi/body/foto; replay identik tidak menambah entri. Bukti PNG/JPEG opsional <=3 MiB. Pengeluaran tidak boleh melebihi kas diharapkan. Respons hilang: pulihkan atau kirim ulang intent asli, jangan UUID baru."
+      description: Kasir pembuka atau manager. Multipart tidak menerima byte bukti. Gunakan proof_object_name hasil direct upload Supabase. UUID terikat aktor/sesi/body/object; replay identik tidak menambah entri.
       operationId: create-cash-movement
       parameters:
         - in: path
@@ -3519,8 +3731,8 @@ paths:
                 contentType: text/plain
               name:
                 contentType: text/plain
-              proof:
-                contentType: image/png,image/jpeg
+              proof_object_name:
+                contentType: text/plain
               reason:
                 contentType: text/plain
               request_id:
@@ -3541,10 +3753,8 @@ paths:
                   maxLength: 120
                   minLength: 1
                   type: string
-                proof:
-                  contentEncoding: binary
-                  contentMediaType: application/octet-stream
-                  format: binary
+                proof_object_name:
+                  maxLength: 1024
                   type: string
                 reason:
                   maxLength: 500
@@ -4955,7 +5165,7 @@ paths:
       tags:
         - Katalog
     post:
-      description: Khusus manager. Multipart memakai product_type, selling_price, stock_status, harga online/modal opsional, variations JSON opsional, dan gambar PNG/JPEG opsional maksimal 3 MiB.
+      description: Khusus manager. Multipart tidak menerima byte gambar. Untuk gambar opsional, selesaikan direct upload Supabase lalu kirim image_object_name dari endpoint upload intent.
       operationId: create-product
       requestBody:
         content:
@@ -4967,8 +5177,8 @@ paths:
                 contentType: text/plain
               description:
                 contentType: text/plain
-              image:
-                contentType: image/png,image/jpeg
+              image_object_name:
+                contentType: text/plain
               is_active:
                 contentType: text/plain
               is_highlighted:
@@ -5002,10 +5212,8 @@ paths:
                   type: integer
                 description:
                   type: string
-                image:
-                  contentEncoding: binary
-                  contentMediaType: application/octet-stream
-                  format: binary
+                image_object_name:
+                  maxLength: 1024
                   type: string
                 is_active:
                   type: boolean
@@ -5213,6 +5421,80 @@ paths:
       summary: Unduh workbook Excel produk dan variasi
       tags:
         - Katalog
+  /products/image-upload-intents:
+    post:
+      description: Khusus manager. Backend membuat object_name terikat aktor/outlet dan signed upload URL Supabase yang berlaku 2 jam. Client mengunggah langsung ke URL tersebut lalu mengirim object_name pada create/update produk.
+      operationId: create-product-image-upload-intent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductImageUploadIntentRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductImageUploadIntentOutputBody"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Akses ditolak.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi konflik data.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Buat signed upload URL gambar produk
+      tags:
+        - Katalog
   /products/{product_id}:
     delete:
       description: Khusus manager. Soft delete mempertahankan object gambar.
@@ -5340,7 +5622,7 @@ paths:
       tags:
         - Katalog
     patch:
-      description: Khusus manager. Multipart parsial dapat mengganti daftar variations, mengganti image, atau menghapus image dengan remove_image.
+      description: Khusus manager. Multipart parsial dapat mengganti daftar variations, mengadopsi direct upload melalui image_object_name, atau menghapus image dengan remove_image.
       operationId: update-product
       parameters:
         - in: path
@@ -5359,8 +5641,8 @@ paths:
                 contentType: text/plain
               description:
                 contentType: text/plain
-              image:
-                contentType: image/png,image/jpeg
+              image_object_name:
+                contentType: text/plain
               is_active:
                 contentType: text/plain
               is_highlighted:
@@ -5394,10 +5676,8 @@ paths:
                   type: integer
                 description:
                   type: string
-                image:
-                  contentEncoding: binary
-                  contentMediaType: application/octet-stream
-                  format: binary
+                image_object_name:
+                  maxLength: 1024
                   type: string
                 is_active:
                   type: boolean
@@ -7628,14 +7908,14 @@ paths:
       tags:
         - User
     patch:
-      description: Multipart parsial untuk nama, nomor HP, email, tanggal lahir YYYY-MM-DD (bukan masa depan), gender_id referensi, alamat pribadi maksimal 1000 karakter, dan avatar PNG/JPEG maksimal 3 MiB, 4096 px per sisi/16 MP. Omit mempertahankan nilai; string kosong menghapus field opsional. Username, role serta outlet read-only.
+      description: Multipart parsial tidak menerima byte avatar. Gunakan avatar_object_name dari direct upload Supabase; remove_avatar menghapus avatar. Omit mempertahankan nilai; string kosong menghapus field opsional. Username, role serta outlet read-only.
       operationId: update-current-user
       requestBody:
         content:
           multipart/form-data:
             encoding:
-              avatar:
-                contentType: image/png,image/jpeg
+              avatar_object_name:
+                contentType: text/plain
               date_of_birth:
                 contentType: text/plain
               email:
@@ -7654,10 +7934,8 @@ paths:
                 contentType: text/plain
             schema:
               properties:
-                avatar:
-                  contentEncoding: binary
-                  contentMediaType: application/octet-stream
-                  format: binary
+                avatar_object_name:
+                  maxLength: 1024
                   type: string
                 date_of_birth:
                   type: string
@@ -7738,6 +8016,68 @@ paths:
                 $ref: "#/components/schemas/StatusError"
           description: Layanan sementara tidak tersedia.
       summary: Memperbarui profil sendiri
+      tags:
+        - User
+  /users/me/avatar-upload-intents:
+    post:
+      description: Backend membuat object_name milik user dan signed upload URL Supabase yang berlaku 2 jam. Client mengunggah langsung ke Supabase lalu mengirim avatar_object_name pada PATCH profil.
+      operationId: create-avatar-upload-intent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AvatarUploadIntentRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvatarUploadIntentOutputBody"
+          description: Created
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Autentikasi diperlukan.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Data tidak ditemukan.
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Ukuran payload terlalu besar.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Validasi data gagal.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Terjadi kesalahan pada server.
+        "502":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan eksternal bermasalah.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusError"
+          description: Layanan sementara tidak tersedia.
+      summary: Buat signed upload URL avatar
       tags:
         - User
   /users/me/genders:

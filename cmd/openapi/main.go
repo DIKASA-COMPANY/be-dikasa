@@ -21,6 +21,7 @@ import (
 	"be-dikasa/internal/sales"
 	"be-dikasa/internal/savedorder"
 	"be-dikasa/internal/server"
+	"be-dikasa/internal/shared/supabasestorage"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
 )
@@ -92,6 +93,9 @@ func (schemaCatalogProvider) ListProducts(context.Context, string, catalog.Produ
 }
 func (schemaCatalogProvider) GetProduct(context.Context, string, string, bool) (*catalog.Product, error) {
 	return &catalog.Product{}, nil
+}
+func (schemaCatalogProvider) PrepareProductImageUpload(context.Context, string, string, int64) (supabasestorage.SignedUpload, error) {
+	return supabasestorage.SignedUpload{}, nil
 }
 func (schemaCatalogProvider) CreateProduct(context.Context, string, catalog.ProductMutation) (*catalog.Product, error) {
 	return &catalog.Product{}, nil

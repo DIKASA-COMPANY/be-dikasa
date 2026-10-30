@@ -55,10 +55,7 @@ func (handler *Handler) UpdateProfile(ctx context.Context, input *UpdateProfileI
 			fields[key] = true
 		}
 	}
-	mutation := ProfileMutation{DateOfBirth: form.DateOfBirth, GenderID: form.GenderID, PersonalAddress: form.PersonalAddress, FirstName: form.FirstName, LastName: form.LastName, PhoneNumber: form.PhoneNumber, Email: form.Email, RemoveAvatar: form.RemoveAvatar, Fields: fields}
-	if form.Avatar.IsSet {
-		mutation.Avatar = &AvatarUpload{Reader: form.Avatar.File, Size: form.Avatar.Size, ContentType: form.Avatar.ContentType, Filename: form.Avatar.Filename}
-	}
+	mutation := ProfileMutation{DateOfBirth: form.DateOfBirth, GenderID: form.GenderID, PersonalAddress: form.PersonalAddress, FirstName: form.FirstName, LastName: form.LastName, PhoneNumber: form.PhoneNumber, Email: form.Email, RemoveAvatar: form.RemoveAvatar, AvatarObjectName: form.AvatarObjectName, Fields: fields}
 	account, err := handler.service.UpdateProfile(ctx, userID, mutation)
 	if err != nil {
 		return nil, settingsStatusError(err)
@@ -66,6 +63,21 @@ func (handler *Handler) UpdateProfile(ctx context.Context, input *UpdateProfileI
 	data := profileData(account)
 	data.CanChangePassword = handler.service.passwordChangesAllowed
 	return &ProfileOutput{Body: ProfileResponse{Data: data}}, nil
+}
+
+// PrepareAvatarUpload creates an authorized signed URL without receiving avatar bytes.
+func (handler *Handler) PrepareAvatarUpload(ctx context.Context, input *AvatarUploadIntentInput) (*AvatarUploadIntentOutput, error) {
+	userID, ok := AuthenticatedUserIDFromContext(ctx)
+	if !ok {
+		return nil, sharederrors.Standard(http.StatusUnauthorized, nil)
+	}
+	intent, err := handler.service.PrepareAvatarUpload(ctx, userID, input.Body.ContentType, input.Body.Size)
+	if err != nil {
+		return nil, settingsStatusError(err)
+	}
+	output := &AvatarUploadIntentOutput{}
+	output.Body.Data = AvatarUploadIntentData{ObjectName: intent.ObjectName, UploadURL: intent.UploadURL, ExpiresIn: intent.ExpiresIn}
+	return output, nil
 }
 
 // ChangePIN memvalidasi konfirmasi dan mengganti PIN user terautentikasi.

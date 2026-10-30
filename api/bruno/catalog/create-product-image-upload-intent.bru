@@ -1,0 +1,40 @@
+meta {
+  name: Create Product Image Upload Intent (Manager)
+  type: http
+  seq: 54
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/products/image-upload-intents
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "content_type": "image/png",
+    "size": 102400
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.object_name: isNotEmpty
+  res.body.data.upload_url: isNotEmpty
+  res.body.data.expires_in: eq 7200
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setEnvVar("productImageObjectName", res.body.data.object_name);
+    bru.setEnvVar("productImageUploadUrl", res.body.data.upload_url);
+  }
+}
+
+docs {
+  PUT the declared PNG bytes directly to productImageUploadUrl with Content-Type image/png. Then run Adopt Uploaded Product Photo using the stored object name. Never send the Supabase secret key to a client.
+}

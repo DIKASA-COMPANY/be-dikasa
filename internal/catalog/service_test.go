@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"be-dikasa/internal/shared/supabasestorage"
 	"be-dikasa/internal/user"
 )
 
@@ -84,14 +85,22 @@ type fakeAccountFinder struct {
 }
 
 type fakeImageStore struct {
-	stored  StoredImage
-	saved   int
-	deleted []string
-	err     error
+	stored      StoredImage
+	intent      supabasestorage.SignedUpload
+	prepared    int
+	adopted     int
+	objectNames []string
+	deleted     []string
+	err         error
 }
 
-func (store *fakeImageStore) Save(context.Context, string, string, *ImageUpload) (*StoredImage, error) {
-	store.saved++
+func (store *fakeImageStore) Prepare(context.Context, string, string, string, int64) (supabasestorage.SignedUpload, error) {
+	store.prepared++
+	return store.intent, store.err
+}
+func (store *fakeImageStore) Adopt(_ context.Context, _, _, objectName string) (*StoredImage, error) {
+	store.adopted++
+	store.objectNames = append(store.objectNames, objectName)
 	if store.err != nil {
 		return nil, store.err
 	}
@@ -154,8 +163,21 @@ func TestCreateProductStorageDisabledOnlyRejectsImage(t *testing.T) {
 	if _, err := service.CreateProduct(context.Background(), "user-a", ProductMutation{Name: "Nasi", CategoryID: "cat", ProductType: "food", Price: 12000}); err != nil {
 		t.Fatalf("image-less product should work: %v", err)
 	}
-	if _, err := service.CreateProduct(context.Background(), "user-a", ProductMutation{Name: "Nasi", CategoryID: "cat", ProductType: "food", Price: 12000, Image: &ImageUpload{}}); !errors.Is(err, ErrStorageDisabled) {
+	if _, err := service.CreateProduct(context.Background(), "user-a", ProductMutation{Name: "Nasi", CategoryID: "cat", ProductType: "food", Price: 12000, ImageObjectName: "pending.png"}); !errors.Is(err, ErrStorageDisabled) {
 		t.Fatalf("expected disabled storage, got %v", err)
+	}
+}
+
+func TestPrepareProductImageUploadRequiresManagerAndReturnsSignedIntent(t *testing.T) {
+	images := &fakeImageStore{intent: supabasestorage.SignedUpload{ObjectName: "object.png", UploadURL: "https://storage/upload?token=x", ExpiresIn: 7200}}
+	cashier := NewService(&fakeRepository{}, fakeAccountFinder{account: account("cashier")}, images)
+	if _, err := cashier.PrepareProductImageUpload(context.Background(), "user-a", "image/png", 100); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("expected manager-only intent, got %v", err)
+	}
+	manager := NewService(&fakeRepository{}, fakeAccountFinder{account: account("manager")}, images)
+	intent, err := manager.PrepareProductImageUpload(context.Background(), "user-a", "image/png", 100)
+	if err != nil || intent.ObjectName != "object.png" || images.prepared != 1 {
+		t.Fatalf("unexpected intent=%+v prepared=%d err=%v", intent, images.prepared, err)
 	}
 }
 
@@ -180,7 +202,7 @@ func TestCreateProductCleansNewImageWhenDatabaseFails(t *testing.T) {
 	repository := &fakeRepository{category: &ProductCategory{ID: "cat", OutletID: "outlet-a", ProductType: ProductType{Code: "food"}, IsActive: true}, createErr: errors.New("database unavailable")}
 	images := &fakeImageStore{stored: StoredImage{URL: "https://image"}}
 	service := NewService(repository, fakeAccountFinder{account: account("manager")}, images)
-	_, err := service.CreateProduct(context.Background(), "user-a", ProductMutation{Name: "Nasi", CategoryID: "cat", Price: 12000, Image: &ImageUpload{}})
+	_, err := service.CreateProduct(context.Background(), "user-a", ProductMutation{Name: "Nasi", CategoryID: "cat", Price: 12000, ImageObjectName: "object.png"})
 	if err == nil || len(images.deleted) != 1 || images.deleted[0] != "https://image" {
 		t.Fatalf("expected failed DB upload cleanup, err=%v deleted=%v", err, images.deleted)
 	}
@@ -202,7 +224,7 @@ func TestUpdateProductReplacesAndRemovesImagesAfterDatabaseSuccess(t *testing.T)
 	images := &fakeImageStore{stored: StoredImage{URL: "https://new"}}
 	service := NewService(repository, fakeAccountFinder{account: account("manager")}, images)
 
-	updated, err := service.UpdateProduct(context.Background(), "user-a", "product-a", ProductMutation{Name: "Nasi Baru", CategoryID: "cat", Price: 13000, IsActive: true, Image: &ImageUpload{}})
+	updated, err := service.UpdateProduct(context.Background(), "user-a", "product-a", ProductMutation{Name: "Nasi Baru", CategoryID: "cat", Price: 13000, IsActive: true, ImageObjectName: "object.png"})
 	if err != nil || updated.ImageURL == nil || *updated.ImageURL != "https://new" || len(images.deleted) != 1 || images.deleted[0] != "https://old" {
 		t.Fatalf("replace image failed: product=%+v deleted=%v err=%v", updated, images.deleted, err)
 	}
@@ -212,6 +234,19 @@ func TestUpdateProductReplacesAndRemovesImagesAfterDatabaseSuccess(t *testing.T)
 	updated, err = service.UpdateProduct(context.Background(), "user-a", "product-a", ProductMutation{Name: "Nasi Baru", CategoryID: "cat", Price: 13000, IsActive: true, RemoveImage: true})
 	if err != nil || updated.ImageURL != nil || images.deleted[len(images.deleted)-1] != "https://new" {
 		t.Fatalf("remove image failed: product=%+v deleted=%v err=%v", updated, images.deleted, err)
+	}
+}
+
+func TestUpdateProductDoesNotDeleteSameAdoptedImageOnRetry(t *testing.T) {
+	url := "https://same"
+	category := &ProductCategory{ID: "cat", OutletID: "outlet-a", ProductType: ProductType{Code: "food"}, IsActive: true}
+	repository := &fakeRepository{product: &Product{ID: "product-a", OutletID: "outlet-a", CategoryID: "cat", Name: "Nasi", Price: 12000, StockStatus: StockStatusAvailable, ImageURL: &url, IsActive: true}, category: category}
+	images := &fakeImageStore{stored: StoredImage{URL: url}}
+	service := NewService(repository, fakeAccountFinder{account: account("manager")}, images)
+
+	_, err := service.UpdateProduct(context.Background(), "user-a", "product-a", ProductMutation{ImageObjectName: "same-object.png", Fields: map[string]bool{"image_object_name": true}})
+	if err != nil || len(images.deleted) != 0 {
+		t.Fatalf("idempotent image completion deleted live object: deleted=%v err=%v", images.deleted, err)
 	}
 }
 

@@ -1,9 +1,9 @@
 package user
 
 import (
+	"be-dikasa/internal/shared/supabasestorage"
 	"context"
 	"errors"
-	"io"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -42,23 +42,17 @@ type ProfileMutation struct {
 	FirstName, LastName, PhoneNumber, Email string
 	DateOfBirth, GenderID, PersonalAddress  string
 	Fields                                  map[string]bool
-	Avatar                                  *AvatarUpload
+	AvatarObjectName                        string
 	RemoveAvatar                            bool
-}
-
-// AvatarUpload adalah file avatar dari multipart form.
-type AvatarUpload struct {
-	Reader                io.ReadSeeker
-	Size                  int64
-	ContentType, Filename string
 }
 
 // AvatarImage contains the only avatar reference persisted in PostgreSQL.
 type AvatarImage struct{ URL string }
 
-// AvatarStore saves avatars and deletes them through their persisted Supabase URL.
+// AvatarStore signs direct uploads, adopts verified objects, and deletes persisted avatars.
 type AvatarStore interface {
-	Save(context.Context, string, string, *AvatarUpload) (*AvatarImage, error)
+	Prepare(context.Context, string, string, string, int64) (supabasestorage.SignedUpload, error)
+	Adopt(context.Context, string, string, string) (*AvatarImage, error)
 	Delete(context.Context, string) error
 }
 
@@ -82,7 +76,10 @@ type disabledAvatarStore struct{}
 
 // NewDisabledAvatarStore membuat storage avatar yang menolak file tetapi membiarkan edit teks profil.
 func NewDisabledAvatarStore() AvatarStore { return disabledAvatarStore{} }
-func (disabledAvatarStore) Save(context.Context, string, string, *AvatarUpload) (*AvatarImage, error) {
+func (disabledAvatarStore) Prepare(context.Context, string, string, string, int64) (supabasestorage.SignedUpload, error) {
+	return supabasestorage.SignedUpload{}, ErrAvatarStorageDisabled
+}
+func (disabledAvatarStore) Adopt(context.Context, string, string, string) (*AvatarImage, error) {
 	return nil, ErrAvatarStorageDisabled
 }
 func (disabledAvatarStore) Delete(context.Context, string) error { return ErrAvatarStorageDisabled }
@@ -101,6 +98,18 @@ func WithAvatarStore(store AvatarStore) ServiceOption {
 }
 
 var sixDigitPIN = regexp.MustCompile(`^[0-9]{6}$`)
+
+// PrepareAvatarUpload authorizes the account before issuing a direct Supabase upload URL.
+func (service *Service) PrepareAvatarUpload(ctx context.Context, userID, contentType string, size int64) (supabasestorage.SignedUpload, error) {
+	account, err := service.repository.FindByID(ctx, userID)
+	if err != nil {
+		return supabasestorage.SignedUpload{}, err
+	}
+	if account.OutletID == nil || strings.TrimSpace(*account.OutletID) == "" {
+		return supabasestorage.SignedUpload{}, ErrInvalidProfile
+	}
+	return service.avatars.Prepare(ctx, *account.OutletID, account.ID, contentType, size)
+}
 
 // UpdateProfile memperbarui field yang dikirim, mengelola avatar, dan mempertahankan field read-only.
 func (service *Service) UpdateProfile(ctx context.Context, userID string, mutation ProfileMutation) (*User, error) {
@@ -141,11 +150,11 @@ func (service *Service) UpdateProfile(ctx context.Context, userID string, mutati
 	}
 	oldURL := account.AvatarURL
 	var uploaded *AvatarImage
-	if mutation.Avatar != nil {
+	if mutation.AvatarObjectName != "" {
 		if account.OutletID == nil || *account.OutletID == "" {
 			return nil, ErrInvalidProfile
 		}
-		uploaded, err = service.avatars.Save(ctx, *account.OutletID, account.ID, mutation.Avatar)
+		uploaded, err = service.avatars.Adopt(ctx, *account.OutletID, account.ID, mutation.AvatarObjectName)
 		if err != nil {
 			return nil, err
 		}
@@ -170,7 +179,7 @@ func (service *Service) UpdateProfile(ctx context.Context, userID string, mutati
 		}
 		return nil, err
 	}
-	if oldURL != nil && (uploaded != nil || (isSet("remove_avatar") && mutation.RemoveAvatar)) {
+	if oldURL != nil && (uploaded == nil || *oldURL != uploaded.URL) && (uploaded != nil || (isSet("remove_avatar") && mutation.RemoveAvatar)) {
 		_ = service.avatars.Delete(ctx, *oldURL)
 	}
 	return account, nil

@@ -31,3 +31,21 @@ func TestStandardPolicyIsSharedByEveryImageAPI(t *testing.T) {
 		t.Fatalf("unexpected standard image policy: %+v", StandardPolicy)
 	}
 }
+
+func TestValidateIntentAcceptsOnlyBoundedPNGOrJPEGHints(t *testing.T) {
+	for contentType, extension := range map[string]string{"image/png": ".png", "image/jpeg": ".jpg"} {
+		actual, err := ValidateIntent(contentType, 1024, StandardPolicy)
+		if err != nil || actual != extension {
+			t.Fatalf("intent %q: extension=%q error=%v", contentType, actual, err)
+		}
+	}
+	for _, value := range []struct {
+		contentType string
+		size        int64
+		want        error
+	}{{"image/gif", 1024, ErrInvalid}, {"image/png", 0, ErrInvalid}, {"image/jpeg", StandardPolicy.MaxBytes + 1, ErrTooLarge}} {
+		if _, err := ValidateIntent(value.contentType, value.size, StandardPolicy); !errors.Is(err, value.want) {
+			t.Fatalf("intent type=%q size=%d: got %v want %v", value.contentType, value.size, err, value.want)
+		}
+	}
+}
