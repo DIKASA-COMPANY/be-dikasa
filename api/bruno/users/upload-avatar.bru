@@ -1,5 +1,5 @@
 meta {
-  name: Upload My Firebase Avatar
+  name: Upload My Supabase Avatar
   type: http
   seq: 24
 }
@@ -25,11 +25,11 @@ assert {
 }
 
 tests {
-  test("avatar is a Firebase download URL", function () {
-    expect(res.body.data.avatar_url).to.match(/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\//);
+  test("avatar is a Supabase public URL", function () {
+    expect(res.body.data.avatar_url).to.match(/^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\//);
   });
 }
 
 docs {
-  The backend validates and uploads the avatar to Firebase Storage. The response contains the Google download URL; clients render that URL directly.
+  The backend validates and uploads the avatar to Supabase Storage. The response contains the public bucket URL; clients render that URL directly.
 }

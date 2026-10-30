@@ -56,7 +56,7 @@ type AvatarUpload struct {
 // AvatarImage contains the only avatar reference persisted in PostgreSQL.
 type AvatarImage struct{ URL string }
 
-// AvatarStore saves avatars and deletes them through their persisted Firebase URL.
+// AvatarStore saves avatars and deletes them through their persisted Supabase URL.
 type AvatarStore interface {
 	Save(context.Context, string, string, *AvatarUpload) (*AvatarImage, error)
 	Delete(context.Context, string) error

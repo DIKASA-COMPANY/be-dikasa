@@ -23,7 +23,8 @@ import (
 	"be-dikasa/internal/sales"
 	"be-dikasa/internal/savedorder"
 	"be-dikasa/internal/server"
-	"be-dikasa/internal/shared/firebaseimage"
+	"be-dikasa/internal/shared/supabaseauth"
+	"be-dikasa/internal/shared/supabasestorage"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
 )
@@ -53,25 +54,30 @@ func run(ctx context.Context) error {
 		}
 	}()
 
-	firebaseAuth, firebaseErr := database.OpenFirebase(ctx, configuration.Firebase.ProjectID)
-	if firebaseErr != nil {
-		return firebaseErr
+	supabaseAuth, err := supabaseauth.NewClient(
+		configuration.Supabase.URL,
+		configuration.Supabase.PublishableKey,
+		configuration.Supabase.SecretKey,
+	)
+	if err != nil {
+		return err
 	}
-	tokenIssuer := auth.NewFirebaseTokenIssuer(firebaseAuth, configuration.Firebase.WebAPIKey)
 
 	userRepository := user.NewGORMRepository(postgres)
-	firebaseImages, closeImageStorage, storageErr := firebaseimage.NewCloudUploader(ctx, configuration.Firebase.StorageBucket)
-	if storageErr != nil {
-		return storageErr
+	supabaseImages, err := supabasestorage.NewUploader(
+		configuration.Supabase.URL,
+		configuration.Supabase.StorageBucket,
+		configuration.Supabase.SecretKey,
+	)
+	if err != nil {
+		return err
 	}
-	defer func() {
-		if closeErr := closeImageStorage(); closeErr != nil {
-			log.Printf("menutup Firebase Storage: %v", closeErr)
-		}
-	}()
-	imageStore := catalog.NewFirebaseImageStore(firebaseImages)
-	avatarStore := user.NewFirebaseAvatarStore(firebaseImages)
-	proofStore := cash.NewFirebaseMovementProofStore(firebaseImages)
+	if err = supabaseImages.VerifyBucket(ctx); err != nil {
+		return err
+	}
+	imageStore := catalog.NewSupabaseImageStore(supabaseImages)
+	avatarStore := user.NewSupabaseAvatarStore(supabaseImages)
+	proofStore := cash.NewSupabaseMovementProofStore(supabaseImages)
 	userService := user.NewService(userRepository, user.WithAvatarStore(avatarStore))
 	catalogRepository := catalog.NewGORMRepository(postgres)
 	catalogService := catalog.NewService(catalogRepository, userRepository, imageStore)
@@ -79,7 +85,7 @@ func run(ctx context.Context) error {
 	cashService := cash.NewService(cashRepository, userRepository, time.Now)
 	paymentRepository := payment.NewGORMRepository(postgres)
 	paymentService := payment.NewService(paymentRepository, userRepository)
-	authService := auth.NewService(userRepository, tokenIssuer)
+	authService := auth.NewService(userRepository, supabaseAuth)
 	registrationRepository := registration.NewGORMRepository(postgres)
 	registrationMailer := registration.NewSMTPMailer(registration.SMTPConfig{
 		Host: configuration.Mail.Host, Port: configuration.Mail.Port, Username: configuration.Mail.Username,
@@ -106,7 +112,7 @@ func run(ctx context.Context) error {
 		ReservationHandler:  reservation.NewHandler(reservationService, sharedvalidator.New()),
 		SalesHandler:        sales.NewHandler(salesService),
 		UserHandler:         user.NewHandler(userService),
-		TokenVerifier:       firebaseAuth,
+		TokenVerifier:       server.NewSupabaseTokenVerifier(supabaseAuth, userRepository),
 		CORSOrigins:         configuration.CORSOrigins,
 	})
 

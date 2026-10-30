@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	firebaseauth "firebase.google.com/go/v4/auth"
-
 	"be-dikasa/internal/auth"
 	"be-dikasa/internal/cash"
 	"be-dikasa/internal/catalog"
@@ -31,7 +29,7 @@ import (
 type routerSignInProvider struct{}
 
 func (routerSignInProvider) SignIn(context.Context, string, string) (auth.Session, error) {
-	return auth.Session{IDToken: "id-token", RefreshToken: "refresh-token", ExpiresIn: 3600, FirebaseUID: "user-id"}, nil
+	return auth.Session{AccessToken: "access-token", RefreshToken: "refresh-token", ExpiresIn: 3600, SupabaseUserID: "user-id"}, nil
 }
 
 type routerRegistrationProvider struct{}
@@ -220,7 +218,7 @@ func newTestRouter() http.Handler {
 		SavedOrderHandler:   savedorder.NewHandler(nil),
 		PaymentHandler:      payment.NewHandler(routerPaymentProvider{}),
 		SalesHandler:        sales.NewHandler(routerSalesProvider{}),
-		TokenVerifier:       stubTokenVerifier{token: &firebaseauth.Token{UID: "user-id"}},
+		TokenVerifier:       stubTokenVerifier{token: &VerifiedToken{UserID: "user-id"}},
 	})
 }
 
@@ -356,7 +354,7 @@ func TestRouterPublishesLoginAndProtectsFeatureRoutes(t *testing.T) {
 	login.Header.Set("Content-Type", "application/json")
 	loginResponse := httptest.NewRecorder()
 	router.ServeHTTP(loginResponse, login)
-	if loginResponse.Code != http.StatusOK || !strings.Contains(loginResponse.Body.String(), `"access_token":"id-token"`) {
+	if loginResponse.Code != http.StatusOK || !strings.Contains(loginResponse.Body.String(), `"access_token":"access-token"`) {
 		t.Fatalf("unexpected login response: %d %s", loginResponse.Code, loginResponse.Body.String())
 	}
 
@@ -373,6 +371,26 @@ func TestRouterPublishesLoginAndProtectsFeatureRoutes(t *testing.T) {
 	router.ServeHTTP(profileResponse, profile)
 	if profileResponse.Code != http.StatusOK || !strings.Contains(profileResponse.Body.String(), `"username":"kasir"`) {
 		t.Fatalf("unexpected profile response: %d %s", profileResponse.Code, profileResponse.Body.String())
+	}
+}
+
+func TestPublicPathAllowlistRejectsLookalikes(t *testing.T) {
+	for _, path := range []string{
+		"/dikasa/v1/login-admin", "/dikasa/v1/register/otp/confirm/extra",
+		"/dikasa/v1/openapi-secret", "/dikasa/v1/schemas/private/secret.json",
+	} {
+		if isPublicPath(path) {
+			t.Fatalf("lookalike path was public: %s", path)
+		}
+	}
+	for _, path := range []string{
+		"/dikasa/v1/login", "/dikasa/v1/register", "/dikasa/v1/register/otp/confirm",
+		"/dikasa/v1/register/otp/resend", "/dikasa/v1/docs", "/dikasa/v1/openapi.yaml",
+		"/dikasa/v1/schemas/LoginRequest.json",
+	} {
+		if !isPublicPath(path) {
+			t.Fatalf("expected public path: %s", path)
+		}
 	}
 }
 
@@ -498,7 +516,7 @@ func TestOpenAPIDoesNotExposeLocalImageFileEndpoints(t *testing.T) {
 	}
 	for _, path := range []string{"/product-images/{filename}", "/avatar-images/{filename}"} {
 		if strings.Contains(response.Body.String(), path) {
-			t.Fatalf("Firebase-only API must return download URLs, not expose local file endpoint %s", path)
+			t.Fatalf("Supabase-only API must return public URLs, not expose local file endpoint %s", path)
 		}
 	}
 }

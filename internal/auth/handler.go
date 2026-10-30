@@ -35,8 +35,8 @@ func (handler *Handler) Login(ctx context.Context, input *LoginInput) (*LoginOut
 		return nil, loginStatusError(err)
 	}
 	return &LoginOutput{Body: LoginResponse{Data: LoginResponseData{
-		AccessToken: session.IDToken, RefreshToken: session.RefreshToken,
-		TokenType: "Bearer", ExpiresIn: session.ExpiresIn, FirebaseUID: session.FirebaseUID,
+		AccessToken: session.AccessToken, RefreshToken: session.RefreshToken,
+		TokenType: "Bearer", ExpiresIn: session.ExpiresIn, SupabaseUserID: session.SupabaseUserID,
 	}}}, nil
 }
 
@@ -47,7 +47,7 @@ func loginStatusError(err error) *sharederrors.StatusError {
 	case errors.Is(err, ErrUserDisabled):
 		return sharederrors.New(http.StatusForbidden, "AKUN_DINONAKTIFKAN", "Akun Anda sedang dinonaktifkan.", nil)
 	case errors.Is(err, ErrProviderUnavailable):
-		return sharederrors.New(http.StatusBadGateway, "FIREBASE_TIDAK_TERSEDIA", "Layanan token sedang bermasalah.", nil)
+		return sharederrors.New(http.StatusBadGateway, "SUPABASE_TIDAK_TERSEDIA", "Layanan autentikasi sedang bermasalah.", nil)
 	default:
 		return sharederrors.Standard(http.StatusInternalServerError, nil)
 	}

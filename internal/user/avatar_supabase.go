@@ -1,7 +1,7 @@
 package user
 
 import (
-	"be-dikasa/internal/shared/firebaseimage"
+	"be-dikasa/internal/shared/supabasestorage"
 	"bytes"
 	"context"
 	"fmt"
@@ -13,16 +13,16 @@ import (
 
 const maxAvatarBytes int64 = 3 * 1024 * 1024
 
-// FirebaseAvatarStore stores avatars through the shared Firebase uploader.
-type FirebaseAvatarStore struct{ uploader *firebaseimage.Uploader }
+// SupabaseAvatarStore stores avatars through the shared Supabase uploader.
+type SupabaseAvatarStore struct{ uploader *supabasestorage.Uploader }
 
-// NewFirebaseAvatarStore creates avatar storage using the shared upload mechanism.
-func NewFirebaseAvatarStore(uploader *firebaseimage.Uploader) *FirebaseAvatarStore {
-	return &FirebaseAvatarStore{uploader: uploader}
+// NewSupabaseAvatarStore creates avatar storage using the shared upload mechanism.
+func NewSupabaseAvatarStore(uploader *supabasestorage.Uploader) *SupabaseAvatarStore {
+	return &SupabaseAvatarStore{uploader: uploader}
 }
 
-// Save validates an avatar, uploads it to Firebase, and returns only its download URL.
-func (store *FirebaseAvatarStore) Save(ctx context.Context, outletID, userID string, upload *AvatarUpload) (*AvatarImage, error) {
+// Save validates an avatar, uploads it to Supabase, and returns only its public URL.
+func (store *SupabaseAvatarStore) Save(ctx context.Context, outletID, userID string, upload *AvatarUpload) (*AvatarImage, error) {
 	outlet, err := uuid.Parse(outletID)
 	if err != nil || outlet == uuid.Nil || outlet.String() != outletID {
 		return nil, ErrInvalidAvatar
@@ -43,13 +43,13 @@ func (store *FirebaseAvatarStore) Save(ctx context.Context, outletID, userID str
 	return &AvatarImage{URL: downloadURL}, nil
 }
 
-// Delete removes an avatar identified by its persisted Firebase download URL.
-func (store *FirebaseAvatarStore) Delete(ctx context.Context, downloadURL string) error {
+// Delete removes an avatar identified by its persisted Supabase public URL.
+func (store *SupabaseAvatarStore) Delete(ctx context.Context, downloadURL string) error {
 	if strings.TrimSpace(downloadURL) == "" {
 		return nil
 	}
 	objectName, err := store.uploader.ObjectName(downloadURL)
-	if err != nil || !validFirebaseAvatarKey(objectName) {
+	if err != nil || !validSupabaseAvatarKey(objectName) {
 		return ErrInvalidAvatar
 	}
 	if err = store.uploader.DeleteURL(ctx, downloadURL); err != nil {
@@ -58,8 +58,8 @@ func (store *FirebaseAvatarStore) Delete(ctx context.Context, downloadURL string
 	return nil
 }
 
-// validFirebaseAvatarKey restricts deletion to server-generated avatar objects.
-func validFirebaseAvatarKey(objectName string) bool {
+// validSupabaseAvatarKey restricts deletion to server-generated avatar objects.
+func validSupabaseAvatarKey(objectName string) bool {
 	parts := strings.Split(objectName, "/")
 	if len(parts) != 6 || parts[0] != "outlets" || parts[2] != "users" || parts[4] != "avatar" {
 		return false

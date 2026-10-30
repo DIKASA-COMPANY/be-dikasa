@@ -5,8 +5,8 @@ import (
 	"be-dikasa/internal/catalog"
 	"be-dikasa/internal/payment"
 	"be-dikasa/internal/refund"
-	"be-dikasa/internal/shared/firebaseimage"
 	"be-dikasa/internal/shared/imagefile"
+	"be-dikasa/internal/shared/supabasestorage"
 	"be-dikasa/internal/user"
 	"bytes"
 	"context"
@@ -37,36 +37,32 @@ type integrationProofBucket struct {
 	objects map[string]integrationProofObject
 }
 
-func newIntegrationProofBucket() *integrationProofBucket {
-	return &integrationProofBucket{objects: map[string]integrationProofObject{}}
-}
-
-func (bucket *integrationProofBucket) Put(_ context.Context, name string, source io.Reader, contentType string, _ map[string]string) error {
-	content, err := io.ReadAll(source)
+func newIntegrationProofStore(t *testing.T) (*cash.SupabaseMovementProofStore, *integrationProofBucket) {
+	t.Helper()
+	bucket := &integrationProofBucket{objects: map[string]integrationProofObject{}}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		name := strings.TrimPrefix(request.URL.Path, "/storage/v1/object/dikasa-images/")
+		bucket.mu.Lock()
+		defer bucket.mu.Unlock()
+		if request.Method == http.MethodDelete {
+			delete(bucket.objects, name)
+			writer.WriteHeader(http.StatusOK)
+			return
+		}
+		content, err := io.ReadAll(request.Body)
+		if err != nil {
+			writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		bucket.objects[name] = integrationProofObject{contentType: request.Header.Get("Content-Type"), content: content}
+		writer.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+	uploader, err := supabasestorage.NewUploader(server.URL, "dikasa-images", "secret", supabasestorage.WithHTTPClient(server.Client()))
 	if err != nil {
-		return err
+		t.Fatal(err)
 	}
-	bucket.mu.Lock()
-	bucket.objects[name] = integrationProofObject{contentType: contentType, content: content}
-	bucket.mu.Unlock()
-	return nil
-}
-
-func (bucket *integrationProofBucket) Read(_ context.Context, name string) (io.ReadCloser, string, int64, error) {
-	bucket.mu.Lock()
-	object, ok := bucket.objects[name]
-	bucket.mu.Unlock()
-	if !ok {
-		return nil, "", 0, errors.New("object not found")
-	}
-	return io.NopCloser(bytes.NewReader(object.content)), object.contentType, int64(len(object.content)), nil
-}
-
-func (bucket *integrationProofBucket) Delete(_ context.Context, name string) error {
-	bucket.mu.Lock()
-	delete(bucket.objects, name)
-	bucket.mu.Unlock()
-	return nil
+	return cash.NewSupabaseMovementProofStore(uploader), bucket
 }
 
 func TestMovementPostgresConcurrentOutflowReplayAndClose(t *testing.T) {
@@ -160,7 +156,7 @@ func TestMovementPrivateProofAndActorPermissions(t *testing.T) {
 	db.Preload("Role").Where("username='admin'").First(&a)
 	sid := uuid.NewString()
 	db.Exec("INSERT INTO cash_sessions(id,outlet_id,user_id,opening_cash,status) VALUES(?,?,?,100000,'open')", sid, *a.OutletID, a.ID)
-	store := cash.NewFirebaseMovementProofStore(firebaseimage.NewUploader("test.firebasestorage.app", newIntegrationProofBucket()))
+	store, _ := newIntegrationProofStore(t)
 	svc := cash.NewMovementService(cash.NewMovementRepository(db), user.NewGORMRepository(db), store, nil)
 	var b bytes.Buffer
 	png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 2, 2)))
@@ -223,8 +219,8 @@ func TestMovementPrivateProofAndActorPermissions(t *testing.T) {
 	var proofResponse struct {
 		Data cash.ProofLink `json:"data"`
 	}
-	if e = json.Unmarshal(w.Body.Bytes(), &proofResponse); w.Code != 200 || e != nil || !strings.HasPrefix(proofResponse.Data.URL, "https://firebasestorage.googleapis.com/v0/b/") {
-		t.Fatal("Firebase proof URL", w.Code, w.Body.String(), e)
+	if e = json.Unmarshal(w.Body.Bytes(), &proofResponse); w.Code != 200 || e != nil || !strings.Contains(proofResponse.Data.URL, "/storage/v1/object/public/dikasa-images/") {
+		t.Fatal("Supabase proof URL", w.Code, w.Body.String(), e)
 	}
 	var role user.Role
 	db.Where("name='cashier'").First(&role)
@@ -321,8 +317,7 @@ func TestMovementRollbackRemovesUnreferencedProof(t *testing.T) {
 	db.Preload("Role").Where("username='admin'").First(&a)
 	sid := uuid.NewString()
 	db.Exec("INSERT INTO cash_sessions(id,outlet_id,user_id,opening_cash,status) VALUES(?,?,?,100000,'open')", sid, *a.OutletID, a.ID)
-	bucket := newIntegrationProofBucket()
-	store := cash.NewFirebaseMovementProofStore(firebaseimage.NewUploader("test.firebasestorage.app", bucket))
+	store, bucket := newIntegrationProofStore(t)
 	var b bytes.Buffer
 	png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 2, 2)))
 	v, e := imagefile.Validate(imagefile.Upload{Reader: bytes.NewReader(b.Bytes()), Size: int64(b.Len()), Filename: "p.png", ContentType: "image/png"}, imagefile.StandardPolicy)

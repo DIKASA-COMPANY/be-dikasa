@@ -1,6 +1,6 @@
-# Firebase product images, stock and workbook exports
+# Supabase product images, stock and workbook exports
 
-Firebase Authentication, Firebase Storage, and PostgreSQL are required. Existing
+Supabase Auth, Supabase Storage, and PostgreSQL are required. Existing
 products remain untracked until a manager enables stock.
 
 ## Existing installation
@@ -13,15 +13,15 @@ environment. The development workspace's local database already has migration 00
 Configure `.env`:
 
 ```dotenv
-FIREBASE_PROJECT_ID=dikasa-project-id
-FIREBASE_WEB_API_KEY=replace-with-web-api-key
-FIREBASE_STORAGE_BUCKET=dikasa-project-id.firebasestorage.app
-GOOGLE_APPLICATION_CREDENTIALS=/secure/firebase-service-account.json
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_replace_me
+SUPABASE_SECRET_KEY=sb_secret_replace_me
+SUPABASE_STORAGE_BUCKET=dikasa-images
 ```
 
 Restart the backend after changing environment values. The backend validates PNG/JPEG
-content up to 3 MiB, 4096 px per side, and 16 megapixels, generates an object name, uploads to Firebase,
-and persists the returned download URL. Product responses expose `image_url`; profile
+content up to 3 MiB, 4096 px per side, and 16 megapixels, generates an object name, uploads to Supabase,
+and persists the returned public URL. Product responses expose `image_url`; profile
 responses expose `avatar_url`. Frontends render those URLs directly and never request
 image bytes from this API.
 
@@ -31,14 +31,16 @@ Objects use these prefixes:
 - `outlets/{outlet_id}/users/{user_id}/avatar/{uuid}.{ext}`
 - `outlets/{outlet_id}/cash-sessions/{session_id}/proofs/{uuid}.{ext}`
 
-Every image type uses the same shared uploader and receives a Firebase download URL.
+Every image type uses the same shared uploader and receives a Supabase public URL.
 PostgreSQL stores only that URL—never bytes, duplicate object names, tokens in separate
 columns, MIME metadata, or hashes. Product/avatar responses return their URL normally;
 cash-proof URLs require an authenticated same-outlet lookup.
 
-Migration `000016_store_only_firebase_image_urls` fails safely if it finds legacy local
-product/avatar URLs or cash-proof object keys. Upload those files to Firebase and update
+Migration `000016_store_only_image_urls` fails safely if it finds legacy local
+product/avatar URLs or cash-proof object keys. Upload those files to Supabase and update
 their URL columns before rerunning the migration; it never discards an unresolved file reference.
+Migration `000017_add_supabase_identity` repeats the public-URL guard for upgraded
+databases and adds the unique nullable `users.supabase_user_id` binding.
 
 ## Upload and bucket decision
 
@@ -49,15 +51,14 @@ second finalize endpoint plus server-side object revalidation and orphan cleanup
 signed/resumable uploads only if file sizes or upload traffic become large enough to make
 API bandwidth a demonstrated bottleneck.
 
-Use a separate Firebase project per environment, with its default bucket:
+Use a separate Supabase project per environment, with a public bucket such as:
 
-- `dikasa-dev.firebasestorage.app`
-- `dikasa-staging.firebasestorage.app`
-- `dikasa-prod.firebasestorage.app`
+- `dikasa-images-dev`
+- `dikasa-images-staging`
+- `dikasa-images-prod`
 
-Do not mix environments in one bucket merely by adding a folder prefix. Firebase
-download URLs are bearer-style links: anyone with the URL can render the object until
-it is deleted or its token is rotated. Product and avatar URLs are returned in ordinary
+Do not mix environments in one bucket merely by adding a folder prefix. Public Storage
+URLs can be rendered by anyone who knows the URL until the object is deleted. Product and avatar URLs are returned in ordinary
 resources. Cash-proof URLs are disclosed only by the authorized proof endpoint and
 must still be treated as sensitive.
 
@@ -68,7 +69,7 @@ the full schemas and `api/bruno/catalog/` for requests.
 
 | Method/path | Access and behavior |
 | --- | --- |
-| `POST /products`, `PATCH /products/{id}` | Manager; multipart `image` uploads to Firebase and the response returns `image_url` |
+| `POST /products`, `PATCH /products/{id}` | Manager; multipart `image` uploads to Supabase and the response returns `image_url` |
 | `GET /products/export.xlsx` | Manager; XLSX attachment for all matching catalog pages |
 | `POST /products/{id}/stock` | Manager; enable/disable tracking or update its threshold |
 | `POST /products/{id}/stock-adjustments` | Manager; change a tracked quantity with a reason |

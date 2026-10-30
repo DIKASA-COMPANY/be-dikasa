@@ -1,7 +1,7 @@
 package catalog
 
 import (
-	"be-dikasa/internal/shared/firebaseimage"
+	"be-dikasa/internal/shared/supabasestorage"
 	"bytes"
 	"context"
 	"fmt"
@@ -13,16 +13,16 @@ import (
 
 const maxImageBytes int64 = 3 * 1024 * 1024
 
-// FirebaseImageStore stores product images through the shared Firebase uploader.
-type FirebaseImageStore struct{ uploader *firebaseimage.Uploader }
+// SupabaseImageStore stores product images through the shared Supabase uploader.
+type SupabaseImageStore struct{ uploader *supabasestorage.Uploader }
 
-// NewFirebaseImageStore creates product image storage using the shared upload mechanism.
-func NewFirebaseImageStore(uploader *firebaseimage.Uploader) *FirebaseImageStore {
-	return &FirebaseImageStore{uploader: uploader}
+// NewSupabaseImageStore creates product image storage using the shared upload mechanism.
+func NewSupabaseImageStore(uploader *supabasestorage.Uploader) *SupabaseImageStore {
+	return &SupabaseImageStore{uploader: uploader}
 }
 
-// Save validates an image, uploads it to Firebase, and returns only its download URL.
-func (store *FirebaseImageStore) Save(ctx context.Context, outletID, productID string, upload *ImageUpload) (*StoredImage, error) {
+// Save validates an image, uploads it to Supabase, and returns only its public URL.
+func (store *SupabaseImageStore) Save(ctx context.Context, outletID, productID string, upload *ImageUpload) (*StoredImage, error) {
 	outlet, err := uuid.Parse(outletID)
 	if err != nil || outlet == uuid.Nil || outlet.String() != outletID {
 		return nil, ErrInvalidImage
@@ -43,13 +43,13 @@ func (store *FirebaseImageStore) Save(ctx context.Context, outletID, productID s
 	return &StoredImage{URL: downloadURL}, nil
 }
 
-// Delete removes a product image identified by its persisted Firebase download URL.
-func (store *FirebaseImageStore) Delete(ctx context.Context, downloadURL string) error {
+// Delete removes a product image identified by its persisted Supabase public URL.
+func (store *SupabaseImageStore) Delete(ctx context.Context, downloadURL string) error {
 	if strings.TrimSpace(downloadURL) == "" {
 		return nil
 	}
 	objectName, err := store.uploader.ObjectName(downloadURL)
-	if err != nil || !validFirebaseProductImageKey(objectName) {
+	if err != nil || !validSupabaseProductImageKey(objectName) {
 		return ErrInvalidImage
 	}
 	if err = store.uploader.DeleteURL(ctx, downloadURL); err != nil {
@@ -58,8 +58,8 @@ func (store *FirebaseImageStore) Delete(ctx context.Context, downloadURL string)
 	return nil
 }
 
-// validFirebaseProductImageKey restricts deletion to server-generated product images.
-func validFirebaseProductImageKey(objectName string) bool {
+// validSupabaseProductImageKey restricts deletion to server-generated product images.
+func validSupabaseProductImageKey(objectName string) bool {
 	parts := strings.Split(objectName, "/")
 	if len(parts) != 6 || parts[0] != "outlets" || parts[2] != "products" || parts[4] != "images" {
 		return false

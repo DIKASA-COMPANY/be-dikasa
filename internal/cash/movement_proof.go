@@ -1,8 +1,8 @@
 package cash
 
 import (
-	"be-dikasa/internal/shared/firebaseimage"
 	"be-dikasa/internal/shared/imagefile"
+	"be-dikasa/internal/shared/supabasestorage"
 	"bytes"
 	"context"
 	"path"
@@ -16,22 +16,22 @@ const maxProofBytes int64 = 3 * 1024 * 1024
 // ProofObject contains the only cash-proof reference persisted in PostgreSQL.
 type ProofObject struct{ URL string }
 
-// MovementProofStore uploads and deletes cash proof images through Firebase URLs.
+// MovementProofStore uploads and deletes cash proof images through Supabase URLs.
 type MovementProofStore interface {
 	Save(context.Context, string, string, imagefile.Image) (ProofObject, error)
 	Delete(context.Context, string) error
 }
 
-// FirebaseMovementProofStore stores cash proofs through the shared Firebase uploader.
-type FirebaseMovementProofStore struct{ uploader *firebaseimage.Uploader }
+// SupabaseMovementProofStore stores cash proofs through the shared Supabase uploader.
+type SupabaseMovementProofStore struct{ uploader *supabasestorage.Uploader }
 
-// NewFirebaseMovementProofStore creates proof storage using the shared upload mechanism.
-func NewFirebaseMovementProofStore(uploader *firebaseimage.Uploader) *FirebaseMovementProofStore {
-	return &FirebaseMovementProofStore{uploader: uploader}
+// NewSupabaseMovementProofStore creates proof storage using the shared upload mechanism.
+func NewSupabaseMovementProofStore(uploader *supabasestorage.Uploader) *SupabaseMovementProofStore {
+	return &SupabaseMovementProofStore{uploader: uploader}
 }
 
-// Save writes validated evidence and returns only its Firebase download URL.
-func (store *FirebaseMovementProofStore) Save(ctx context.Context, outletID, sessionID string, value imagefile.Image) (ProofObject, error) {
+// Save writes validated evidence and returns only its Supabase public URL.
+func (store *SupabaseMovementProofStore) Save(ctx context.Context, outletID, sessionID string, value imagefile.Image) (ProofObject, error) {
 	outlet, err := canonicalProofUUID(outletID)
 	if err != nil {
 		return ProofObject{}, ErrProofInvalid
@@ -48,10 +48,10 @@ func (store *FirebaseMovementProofStore) Save(ctx context.Context, outletID, ses
 	return ProofObject{URL: downloadURL}, nil
 }
 
-// Delete removes a cash proof identified by its persisted Firebase download URL.
-func (store *FirebaseMovementProofStore) Delete(ctx context.Context, downloadURL string) error {
+// Delete removes a cash proof identified by its persisted Supabase public URL.
+func (store *SupabaseMovementProofStore) Delete(ctx context.Context, downloadURL string) error {
 	objectName, err := store.uploader.ObjectName(downloadURL)
-	if err != nil || !validFirebaseProofKey(objectName) {
+	if err != nil || !validSupabaseProofKey(objectName) {
 		return ErrProofInvalid
 	}
 	if err = store.uploader.DeleteURL(ctx, downloadURL); err != nil {
@@ -68,8 +68,8 @@ func canonicalProofUUID(value string) (string, error) {
 	return id.String(), nil
 }
 
-// validFirebaseProofKey restricts deletion to server-generated cash proof objects.
-func validFirebaseProofKey(objectName string) bool {
+// validSupabaseProofKey restricts deletion to server-generated cash proof objects.
+func validSupabaseProofKey(objectName string) bool {
 	parts := strings.Split(objectName, "/")
 	if len(parts) != 6 || parts[0] != "outlets" || parts[2] != "cash-sessions" || parts[4] != "proofs" {
 		return false

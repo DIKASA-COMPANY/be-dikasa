@@ -149,12 +149,12 @@ func (s *MovementService) Activity(ctx context.Context, actor, sid string, page,
 	return s.repo.activity(ctx, a, sid, page, size, s.proof != nil)
 }
 
-// ProofLink contains an authorized Firebase download URL.
+// ProofLink contains an authorized Supabase Storage public URL.
 type ProofLink struct {
-	URL string `json:"url" format:"uri" doc:"Firebase Storage download URL for direct client rendering"`
+	URL string `json:"url" format:"uri" doc:"Supabase Storage public URL for direct client rendering"`
 }
 
-// Proof checks outlet scope before returning the persisted Firebase URL.
+// Proof checks outlet scope before returning the persisted Supabase URL.
 func (s *MovementService) Proof(ctx context.Context, actor, sid, id string) (ProofLink, error) {
 	d, e := s.Detail(ctx, actor, sid, id)
 	if e != nil {

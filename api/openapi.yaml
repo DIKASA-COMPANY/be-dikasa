@@ -809,18 +809,18 @@ components:
       additionalProperties: false
       properties:
         access_token:
-          description: Firebase ID token untuk Authorization Bearer
+          description: Supabase access token untuk Authorization Bearer
           type: string
         expires_in:
           examples:
             - 3600
           format: int64
           type: integer
-        firebase_uid:
-          description: UUID user PostgreSQL yang dipakai sebagai Firebase UID
-          type: string
         refresh_token:
-          description: Firebase refresh token
+          description: Supabase refresh token
+          type: string
+        supabase_user_id:
+          description: UUID identitas Supabase Auth yang terikat ke user PostgreSQL
           type: string
         token_type:
           enum:
@@ -833,7 +833,7 @@ components:
         - refresh_token
         - token_type
         - expires_in
-        - firebase_uid
+        - supabase_user_id
       type: object
     Meta:
       additionalProperties: false
@@ -1415,7 +1415,7 @@ components:
           format: uuid
           type: string
         image_url:
-          description: Firebase Storage download URL; render directly and do not proxy through the API
+          description: Supabase Storage public URL; render directly and do not proxy through the API
           format: uri
           type: string
         is_active:
@@ -1628,7 +1628,7 @@ components:
       additionalProperties: false
       properties:
         avatar_url:
-          description: Firebase Storage download URL for direct client rendering
+          description: Supabase Storage public URL for direct client rendering
           format: uri
           type: string
         can_change_password:
@@ -1699,7 +1699,7 @@ components:
       additionalProperties: false
       properties:
         url:
-          description: Firebase Storage download URL for direct client rendering
+          description: Supabase Storage public URL for direct client rendering
           format: uri
           type: string
       required:
@@ -3076,9 +3076,9 @@ components:
         - data
       type: object
   securitySchemes:
-    firebaseBearer:
+    supabaseBearer:
       bearerFormat: JWT
-      description: Gunakan Firebase ID token pada access_token dari /login.
+      description: Gunakan Supabase access token dari /login atau alur OAuth Supabase.
       scheme: bearer
       type: http
 info:
@@ -3786,7 +3786,7 @@ paths:
         - Kas Kasir
   /cash-sessions/{session_id}/movements/{movement_id}/proof:
     get:
-      description: Wajib autentikasi dan outlet cocok. Mengembalikan Firebase Storage download URL agar frontend merender gambar langsung tanpa proxy file melalui API.
+      description: Wajib autentikasi dan outlet cocok. Mengembalikan Supabase Storage public URL agar frontend merender gambar langsung tanpa proxy file melalui API.
       operationId: cash-movement-proof
       parameters:
         - in: path
@@ -4054,7 +4054,7 @@ paths:
         - Sistem
   /login:
     post:
-      description: Memvalidasi kredensial PostgreSQL lalu menerbitkan Firebase ID token dan refresh token.
+      description: Memvalidasi kredensial PostgreSQL, memigrasikan akun lama bila perlu, lalu menerbitkan access dan refresh token Supabase.
       operationId: login
       requestBody:
         content:
@@ -7597,7 +7597,7 @@ paths:
         - Refund
   /users/me:
     get:
-      description: Mengambil profil PostgreSQL berdasarkan identitas Firebase ID token.
+      description: Mengambil profil PostgreSQL berdasarkan identitas Supabase access token.
       operationId: get-current-user
       responses:
         "200":
@@ -7767,7 +7767,7 @@ paths:
         - User
   /users/me/password:
     patch:
-      description: Memverifikasi password lama lalu menyimpan bcrypt hash password PostgreSQL baru (8–72 byte). Tidak mencabut Firebase ID token yang sudah terbit. Respons hilang mungkin berarti perubahan tersimpan; jangan retry otomatis.
+      description: Memverifikasi password lama lalu menyimpan bcrypt hash PostgreSQL baru (8–72 byte). Hash disinkronkan ke Supabase Auth pada login berikutnya; access token yang sudah terbit tetap berlaku sampai kedaluwarsa. Respons hilang mungkin berarti perubahan tersimpan; jangan retry otomatis.
       operationId: change-current-user-password
       requestBody:
         content:
@@ -8072,7 +8072,7 @@ paths:
       tags:
         - Pembayaran
 security:
-  - firebaseBearer: []
+  - supabaseBearer: []
 servers:
   - description: API Dikasa
     url: /dikasa/v1

@@ -1,6 +1,6 @@
 # Cash-session reconciliation
 
-Implemented POS-07 using Firebase Authentication, Firebase Storage, and PostgreSQL.
+Implemented POS-07 using Supabase Auth, Supabase Storage, and PostgreSQL.
 
 ## Cash calculation and audit
 
@@ -83,10 +83,10 @@ create, detail, actor-bound by-request recovery, reversal and proof-URL routes.
 All are under /dikasa/v1/cash-sessions/{session_id}. Exact UUID/body replay returns
 original success even after closure. A missing lookup is not proof failure.
 
-Cash proof evidence uses the same shared Firebase uploader as product and avatar images,
+Cash proof evidence uses the same shared Supabase uploader as product and avatar images,
 under `outlets/{outlet_id}/cash-sessions/{session_id}/proofs/{uuid}.{ext}`. PostgreSQL
 stores only `proof_url`. The authenticated same-outlet proof endpoint returns JSON with
-that URL, and the frontend renders Firebase directly rather than proxying bytes through
+that URL, and the frontend renders Supabase Storage directly rather than proxying bytes through
 the API. Three MiB, 4096 px/16 MP limits apply. The URL is a bearer link and must remain
 confidential. Uncertain DB commits may leave a safe orphan object if the persisted URL
 cannot be confirmed.

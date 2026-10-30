@@ -1,5 +1,5 @@
 meta {
-  name: Cash evidence Firebase URL
+  name: Cash evidence Supabase URL
   type: http
   seq: 75
 }
@@ -16,10 +16,10 @@ assert {
   res.body.data.url: isNotEmpty
 }
 tests {
-  test("proof uses the shared Firebase download URL", function () {
-    expect(res.body.data.url).to.match(/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\//);
+  test("proof uses the shared Supabase public URL", function () {
+    expect(res.body.data.url).to.match(/^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\//);
   });
 }
 docs {
-  Access to the stored URL requires an authenticated same-outlet lookup. The returned Firebase token URL is rendered directly by the frontend and must be treated as a bearer link.
+  Access to the stored URL requires an authenticated same-outlet lookup. The returned public bucket URL is rendered directly by the frontend and must be treated as sensitive.
 }
