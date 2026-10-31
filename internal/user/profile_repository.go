@@ -44,7 +44,7 @@ func (r *GORMRepository) PatchProfile(ctx context.Context, a *User, m ProfileMut
 		if m.Fields["personal_address"] {
 			changes["personal_address"] = a.PersonalAddress
 		}
-		if m.Avatar != nil || (set("remove_avatar") && m.RemoveAvatar) {
+		if m.AvatarObjectName != "" || (set("remove_avatar") && m.RemoveAvatar) {
 			same := (old == nil && current.AvatarURL == nil) || (old != nil && current.AvatarURL != nil && *old == *current.AvatarURL)
 			if !same {
 				return ErrConflict

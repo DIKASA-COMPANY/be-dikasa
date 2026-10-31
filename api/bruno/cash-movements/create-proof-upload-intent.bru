@@ -1,0 +1,41 @@
+meta {
+  name: Create cash proof upload intent
+  type: http
+  seq: 71
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/cash-sessions/{{cashSessionId}}/movement-proof-upload-intents
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "request_id": "{{cashMovementRequestId}}",
+    "content_type": "image/png",
+    "size": 102400
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.object_name: isNotEmpty
+  res.body.data.upload_url: isNotEmpty
+  res.body.data.expires_in: eq 7200
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setEnvVar("cashProofObjectName", res.body.data.object_name);
+    bru.setEnvVar("cashProofUploadUrl", res.body.data.upload_url);
+  }
+}
+
+docs {
+  Use the same request_id in the subsequent cash movement. PUT proof bytes directly to cashProofUploadUrl, then send cashProofObjectName as proof_object_name.
+}

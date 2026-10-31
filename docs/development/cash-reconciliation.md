@@ -78,15 +78,16 @@ manager any original, once and only while open. Outflows cannot overdraw expecte
 cash. Totals/hash include every permanent event; a zero-net correction still stales
 an earlier preview. Historical frozen JSON is preserved; absent movement totals=0.
 
-Use the cash-movements Bruno folder and generated OpenAPI for activity, multipart
-create, detail, actor-bound by-request recovery, reversal and proof-URL routes.
+Use the cash-movements Bruno folder and generated OpenAPI for activity, proof upload
+intent, multipart create without file bytes, detail, actor-bound recovery, reversal and proof-URL routes.
 All are under /dikasa/v1/cash-sessions/{session_id}. Exact UUID/body replay returns
 original success even after closure. A missing lookup is not proof failure.
 
-Cash proof evidence uses the same shared Supabase uploader as product and avatar images,
-under `outlets/{outlet_id}/cash-sessions/{session_id}/proofs/{uuid}.{ext}`. PostgreSQL
-stores only `proof_url`. The authenticated same-outlet proof endpoint returns JSON with
-that URL, and the frontend renders Supabase Storage directly rather than proxying bytes through
-the API. Three MiB, 4096 px/16 MP limits apply. The URL is a bearer link and must remain
-confidential. Uncertain DB commits may leave a safe orphan object if the persisted URL
-cannot be confirmed.
+Cash proof evidence uses a signed Supabase upload URL bound to outlet, session, actor,
+and movement request UUID under
+`outlets/{outlet_id}/cash-sessions/{session_id}/users/{actor_id}/requests/{request_id}/proofs/{uuid}.{ext}`.
+The client uploads bytes directly, then sends `proof_object_name` with the same request UUID.
+The backend revalidates the stored object before PostgreSQL stores only `proof_url`.
+The authenticated same-outlet proof endpoint returns that public URL; no image bytes pass
+through the DIKASA API. Three MiB, 4096 px/16 MP limits apply. Invalid or failed-adoption
+objects are deleted; scheduled storage reconciliation removes expired unreferenced intents.

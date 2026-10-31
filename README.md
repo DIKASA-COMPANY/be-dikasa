@@ -1,7 +1,8 @@
 # Dikasa Backend
 
-Product, avatar, and cash-proof uploads use Supabase Storage exclusively. The backend validates
-the image, uploads it, and returns a public bucket URL for clients to render.
+Product, avatar, and cash-proof uploads use Supabase Storage signed upload URLs exclusively.
+The backend authorizes an intent, the client uploads directly to Supabase, and the backend
+validates the stored image before persisting its public URL.
 Shared stock tracking, manager inventory adjustments/history, variation-aware
 checkout validation and real XLSX exports are available. See
 [product images and stock setup](docs/development/product-stock-and-images.md).
@@ -227,7 +228,8 @@ Google/Facebook identity already exists, it is linked instead of creating a dupl
 The `/login` endpoint also performs the same migration lazily as a fallback.
 
 Supabase Storage is mandatory at startup and the configured bucket must be public.
-Images are limited to 3 MiB and validated as real PNG/JPEG content before upload.
+Images are limited to 3 MiB. Declared type/size are checked before signing, then the
+stored PNG/JPEG bytes, dimensions, and pixel count are verified during completion.
 Product and profile responses return public URLs; frontends render those URLs directly. PINs use six digits, and both
 PINs and passwords are persisted only as bcrypt hashes.
 
@@ -310,7 +312,8 @@ All application routes use the `/dikasa/v1` prefix.
 | `POST` | `/register/otp/confirm` | Public | Verify the OTP and activate the outlet/user |
 | `POST` | `/login` | Public | Validate PostgreSQL credentials and issue Supabase tokens |
 | `GET` | `/users/me` | Supabase Bearer token | Return the authenticated PostgreSQL profile |
-| `PATCH` | `/users/me` | Supabase Bearer token | Partially update name, phone, email, or profile avatar |
+| `POST` | `/users/me/avatar-upload-intents` | Supabase Bearer token | Create a signed direct-upload URL for the caller's avatar |
+| `PATCH` | `/users/me` | Supabase Bearer token | Partially update profile or adopt `avatar_object_name` |
 | `PATCH` | `/users/me/pin` | Supabase Bearer token | Set or change the six-digit account PIN |
 | `PATCH` | `/users/me/password` | Supabase Bearer token | Verify the current password and set a new password |
 | `POST` | `/cash-sessions` | Supabase Bearer token | Open the outlet cash session with an opening-cash amount |
@@ -324,7 +327,9 @@ All application routes use the `/dikasa/v1` prefix.
 | `GET` | `/product-types` | Supabase Bearer token | Return Food, Drink, and Additional tabs |
 | `GET` | `/products` | Supabase Bearer token | Return outlet products with category, type, search, and pagination filters |
 | `GET` | `/products/{product_id}` | Supabase Bearer token | Return one outlet product |
+| `POST` | `/products/image-upload-intents` | Manager | Create a signed direct-upload URL for a product image |
 | `POST/PATCH/DELETE` | `/products` and `/products/{product_id}` | Manager | Manage products with soft delete |
+| `POST` | `/cash-sessions/{session_id}/movement-proof-upload-intents` | Opening cashier / Manager | Create a request-bound signed proof upload URL |
 | `GET/POST` | `/product-types/{product_type}/categories` | User / Manager | List or create outlet categories for a product type |
 | `PATCH/DELETE` | `/product-types/{product_type}/categories/{category_id}` | Manager | Update or soft-delete a category |
 | `GET/POST` | `/order-types` | User / Manager | List or create outlet order types |
@@ -341,7 +346,8 @@ All application routes use the `/dikasa/v1` prefix.
 Product writes use `multipart/form-data`. The create form follows the product
 screen: `name`, `category_id`, `product_type`, `selling_price`, `stock_status`,
 optional `online_selling_price`, `cost_price`, `online_cost_price`, `description`,
-and `image`. The optional `variations` part is `application/json` containing an
+and `image_object_name`. Image bytes are uploaded directly to the signed Supabase URL
+before the product mutation. The optional `variations` part is `application/json` containing an
 array with the same price and stock fields. `price` remains in responses as a
 compatibility alias of `selling_price`. “Simpan & Buat Lagi” repeats the same
 POST request; spreadsheet export is outside this create-product endpoint.
@@ -519,7 +525,8 @@ applied in this workspace's local database. Fresh installs must also apply
 `migrations/000014_add_user_personal_address.up.sql` in the backend after000013.
 
 Photos are stored under `outlets/{outlet_id}/users/{user_id}/avatar/` in the configured
-Supabase bucket. Password changes update the PostgreSQL credential used by `/login`;
+Supabase bucket. The avatar intent is actor-bound; `PATCH /users/me` adopts only its exact
+`avatar_object_name` after server-side content verification. Password changes update the PostgreSQL credential used by `/login`;
 the bcrypt hash is synchronized to Supabase Auth on the next password login and does
 not revoke access tokens already issued.
 
@@ -528,8 +535,9 @@ not revoke access tokens already issued.
 
 Restart the backend and Flutter, then choose **Menu → Kas Kasir / Uang Masuk-Keluar**.
 The opening cashier or manager may record movements; authenticated outlet staff
-can read history. Optional evidence uses the same Supabase upload mechanism as product
-and avatar images. PostgreSQL stores only the resulting URL; authorized users obtain
+can read history. Optional evidence uses a signed URL bound to the actor, outlet, cash
+session, and movement `request_id`. The client uploads directly to Supabase and sends
+`proof_object_name` with the movement. PostgreSQL stores only the resulting URL; authorized users obtain
 that URL through the protected proof endpoint and the frontend renders it directly.
 
 Fresh backend installs must apply `migrations/000015_create_cash_movements.up.sql`

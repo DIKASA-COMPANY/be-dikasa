@@ -1,7 +1,7 @@
 package cash
 
 import (
-	"be-dikasa/internal/shared/imagefile"
+	"be-dikasa/internal/shared/supabasestorage"
 	"be-dikasa/internal/user"
 	"context"
 	"crypto/sha256"
@@ -16,7 +16,7 @@ import (
 type MovementCommand struct {
 	RequestID, Kind, Name, Reason string
 	Amount                        int64
-	Proof                         *imagefile.Image
+	ProofObjectName               string
 }
 
 // ReversalCommand links one correction intent to an original movement.
@@ -60,6 +60,33 @@ func (s *MovementService) Create(ctx context.Context, actor, sid string, c Movem
 	return s.command(ctx, actor, sid, "", c)
 }
 
+// PrepareProofUpload authorizes one session request before issuing a direct Supabase upload URL.
+func (s *MovementService) PrepareProofUpload(ctx context.Context, actor, sid, requestID, contentType string, size int64) (supabasestorage.SignedUpload, error) {
+	if s.proof == nil {
+		return supabasestorage.SignedUpload{}, ErrProofDisabled
+	}
+	a, err := s.account(ctx, actor)
+	if err != nil {
+		return supabasestorage.SignedUpload{}, err
+	}
+	sid, err = movementUUID(sid)
+	if err != nil {
+		return supabasestorage.SignedUpload{}, err
+	}
+	requestID, err = movementUUID(requestID)
+	if err != nil {
+		return supabasestorage.SignedUpload{}, err
+	}
+	activity, err := s.repo.activity(ctx, a, sid, 1, 1, true)
+	if err != nil {
+		return supabasestorage.SignedUpload{}, err
+	}
+	if !activity.Capabilities.CanUploadProof {
+		return supabasestorage.SignedUpload{}, ErrCloseForbidden
+	}
+	return s.proof.Prepare(ctx, *a.OutletID, sid, a.ID, requestID, contentType, size)
+}
+
 // Reverse records exactly one opposite entry; the original remains unchanged.
 func (s *MovementService) Reverse(ctx context.Context, actor, sid, id string, c ReversalCommand) (MovementRecord, error) {
 	v, e := movementUUID(id)
@@ -92,12 +119,12 @@ func (s *MovementService) command(ctx context.Context, actor, sid, reverse strin
 	if reverse == "" && ((c.Kind != "in" && c.Kind != "out") || c.Amount < 1 || c.Amount > maxOpeningCash || len([]rune(c.Name)) < 1 || len([]rune(c.Name)) > 120) {
 		return empty, ErrMovementInvalid
 	}
-	proofHash := ""
-	if c.Proof != nil {
+	proofHash := strings.TrimSpace(c.ProofObjectName)
+	if proofHash != "" {
 		if s.proof == nil {
 			return empty, ErrProofDisabled
 		}
-		proofHash = c.Proof.SHA256
+		c.ProofObjectName = proofHash
 	}
 	raw, _ := json.Marshal(struct {
 		Actor, Outlet, Session, Reverse, Request, Kind, Name, Reason, Proof string
