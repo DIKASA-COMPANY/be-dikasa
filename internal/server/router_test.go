@@ -22,6 +22,7 @@ import (
 	"be-dikasa/internal/reservation"
 	"be-dikasa/internal/sales"
 	"be-dikasa/internal/savedorder"
+	"be-dikasa/internal/shared/supabasestorage"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
 )
@@ -116,6 +117,9 @@ func (routerCatalogProvider) ListProducts(context.Context, string, catalog.Produ
 }
 func (routerCatalogProvider) GetProduct(context.Context, string, string, bool) (*catalog.Product, error) {
 	return &catalog.Product{}, nil
+}
+func (routerCatalogProvider) PrepareProductImageUpload(context.Context, string, string, int64) (supabasestorage.SignedUpload, error) {
+	return supabasestorage.SignedUpload{}, nil
 }
 func (routerCatalogProvider) CreateProduct(context.Context, string, catalog.ProductMutation) (*catalog.Product, error) {
 	return &catalog.Product{}, nil
@@ -517,6 +521,32 @@ func TestOpenAPIDoesNotExposeLocalImageFileEndpoints(t *testing.T) {
 	for _, path := range []string{"/product-images/{filename}", "/avatar-images/{filename}"} {
 		if strings.Contains(response.Body.String(), path) {
 			t.Fatalf("Supabase-only API must return public URLs, not expose local file endpoint %s", path)
+		}
+	}
+	document := response.Body.String()
+	if strings.Contains(document, "format: binary") {
+		t.Fatal("business API still exposes binary image upload")
+	}
+	for _, value := range []string{"/products/image-upload-intents:", "/users/me/avatar-upload-intents:", "/cash-sessions/{session_id}/movement-proof-upload-intents:", "image_object_name:", "avatar_object_name:", "proof_object_name:"} {
+		if !strings.Contains(document, value) {
+			t.Fatalf("presigned upload contract missing %s", value)
+		}
+	}
+}
+
+func TestImageUploadIntentRoutesRequireBearerAuthentication(t *testing.T) {
+	router := newTestRouter()
+	for _, path := range []string{
+		"/dikasa/v1/products/image-upload-intents",
+		"/dikasa/v1/users/me/avatar-upload-intents",
+		"/dikasa/v1/cash-sessions/11111111-1111-4111-8111-111111111111/movement-proof-upload-intents",
+	} {
+		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"content_type":"image/png","size":100}`))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("POST %s without token: got %d", path, response.Code)
 		}
 	}
 }

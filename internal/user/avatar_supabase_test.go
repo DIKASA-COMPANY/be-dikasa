@@ -26,13 +26,30 @@ func avatarPNG(t *testing.T) []byte {
 	return output.Bytes()
 }
 
-func newAvatarStore(t *testing.T, uploaded *string) *SupabaseAvatarStore {
+type avatarStorageStub struct {
+	object  string
+	deleted string
+	content []byte
+}
+
+func newAvatarStore(t *testing.T, stub *avatarStorageStub) *SupabaseAvatarStore {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if uploaded != nil {
-			*uploaded = strings.TrimPrefix(request.URL.Path, "/storage/v1/object/dikasa-images/")
+		switch {
+		case request.Method == http.MethodPost && strings.HasPrefix(request.URL.Path, "/storage/v1/object/upload/sign/dikasa-images/"):
+			stub.object = strings.TrimPrefix(request.URL.Path, "/storage/v1/object/upload/sign/dikasa-images/")
+			writer.Header().Set("Content-Type", "application/json")
+			_, _ = writer.Write([]byte(`{"url":"/object/upload/sign/dikasa-images/` + stub.object + `?token=avatar-token"}`))
+		case request.Method == http.MethodGet:
+			stub.object = strings.TrimPrefix(request.URL.Path, "/storage/v1/object/dikasa-images/")
+			writer.Header().Set("Content-Type", "image/png")
+			_, _ = writer.Write(stub.content)
+		case request.Method == http.MethodDelete:
+			stub.deleted = strings.TrimPrefix(request.URL.Path, "/storage/v1/object/dikasa-images/")
+			writer.WriteHeader(http.StatusOK)
+		default:
+			t.Fatalf("unexpected storage request: %s %s", request.Method, request.URL.Path)
 		}
-		writer.WriteHeader(http.StatusOK)
 	}))
 	t.Cleanup(server.Close)
 	uploader, err := supabasestorage.NewUploader(server.URL, "dikasa-images", "secret", supabasestorage.WithHTTPClient(server.Client()))
@@ -42,38 +59,43 @@ func newAvatarStore(t *testing.T, uploaded *string) *SupabaseAvatarStore {
 	return NewSupabaseAvatarStore(uploader)
 }
 
-func TestSupabaseAvatarStoreUsesOutletUserPathAndPublicURL(t *testing.T) {
-	var uploaded string
-	store := newAvatarStore(t, &uploaded)
-	content := avatarPNG(t)
-	stored, err := store.Save(context.Background(), "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222", &AvatarUpload{Reader: bytes.NewReader(content), Size: int64(len(content)), ContentType: "image/png", Filename: "avatar.png"})
-	if err != nil {
-		t.Fatalf("save avatar: %v", err)
-	}
-	if !strings.HasPrefix(uploaded, "outlets/11111111-1111-4111-8111-111111111111/users/22222222-2222-4222-8222-222222222222/avatar/") || !strings.Contains(stored.URL, "/storage/v1/object/public/dikasa-images/") {
-		t.Fatalf("unexpected avatar object=%q stored=%+v", uploaded, stored)
-	}
-}
-
-func TestSupabaseAvatarStoreRejectsUnsafeObjectIdentifiers(t *testing.T) {
-	content := avatarPNG(t)
-	store := newAvatarStore(t, nil)
-	_, err := store.Save(context.Background(), "../other-outlet", "22222222-2222-4222-8222-222222222222", &AvatarUpload{Reader: bytes.NewReader(content), Size: int64(len(content)), ContentType: "image/png", Filename: "ok.png"})
-	if !errors.Is(err, ErrInvalidAvatar) {
-		t.Fatalf("expected invalid identifier rejection, got %v", err)
-	}
-	if err = store.Delete(context.Background(), "https://example.com/outlets/not-a-uuid/other/avatar/file.png"); !errors.Is(err, ErrInvalidAvatar) {
-		t.Fatalf("expected unsafe delete rejection, got %v", err)
-	}
-}
-
-func TestSupabaseAvatarStoreRejectsInvalidAndOversizedFiles(t *testing.T) {
-	store := newAvatarStore(t, nil)
+func TestSupabaseAvatarStorePreparesAndAdoptsDirectUpload(t *testing.T) {
+	stub := &avatarStorageStub{content: avatarPNG(t)}
+	store := newAvatarStore(t, stub)
 	outletID, userID := "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
-	if _, err := store.Save(context.Background(), outletID, userID, &AvatarUpload{Reader: bytes.NewReader([]byte("bad")), Size: 3, ContentType: "image/png", Filename: "bad.png"}); !errors.Is(err, ErrInvalidAvatar) {
-		t.Fatalf("invalid avatar: %v", err)
+	intent, err := store.Prepare(context.Background(), outletID, userID, "image/png", int64(len(stub.content)))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := store.Save(context.Background(), outletID, userID, &AvatarUpload{Reader: bytes.NewReader(nil), Size: maxAvatarBytes + 1, ContentType: "image/png", Filename: "large.png"}); !errors.Is(err, ErrAvatarTooLarge) {
-		t.Fatalf("large avatar: %v", err)
+	wantPrefix := "outlets/" + outletID + "/users/" + userID + "/avatar/"
+	if !strings.HasPrefix(intent.ObjectName, wantPrefix) || !strings.Contains(intent.UploadURL, "token=avatar-token") {
+		t.Fatalf("unexpected avatar intent: %+v", intent)
+	}
+	stored, err := store.Adopt(context.Background(), outletID, userID, intent.ObjectName)
+	if err != nil || !strings.Contains(stored.URL, "/storage/v1/object/public/dikasa-images/"+intent.ObjectName) {
+		t.Fatalf("unexpected adopted avatar: %+v error=%v", stored, err)
+	}
+}
+
+func TestSupabaseAvatarStoreRejectsTamperedOrInvalidCompletion(t *testing.T) {
+	stub := &avatarStorageStub{content: []byte("bad")}
+	store := newAvatarStore(t, stub)
+	outletID, userID := "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
+	foreign := "outlets/" + outletID + "/users/33333333-3333-4333-8333-333333333333/avatar/44444444-4444-4444-8444-444444444444.png"
+	if _, err := store.Adopt(context.Background(), outletID, userID, foreign); !errors.Is(err, ErrInvalidAvatar) {
+		t.Fatalf("expected user-bound path rejection, got %v", err)
+	}
+	intent, err := store.Prepare(context.Background(), outletID, userID, "image/png", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.Adopt(context.Background(), outletID, userID, intent.ObjectName); !errors.Is(err, ErrInvalidAvatar) {
+		t.Fatalf("expected invalid stored avatar, got %v", err)
+	}
+	if stub.deleted != intent.ObjectName {
+		t.Fatalf("invalid avatar was not deleted: %q", stub.deleted)
+	}
+	if _, err = store.Prepare(context.Background(), outletID, userID, "image/jpeg", maxAvatarBytes+1); !errors.Is(err, ErrAvatarTooLarge) {
+		t.Fatalf("expected oversized avatar intent, got %v", err)
 	}
 }

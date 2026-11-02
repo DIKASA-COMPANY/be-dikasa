@@ -19,19 +19,21 @@ SUPABASE_SECRET_KEY=sb_secret_replace_me
 SUPABASE_STORAGE_BUCKET=dikasa-images
 ```
 
-Restart the backend after changing environment values. The backend validates PNG/JPEG
-content up to 3 MiB, 4096 px per side, and 16 megapixels, generates an object name, uploads to Supabase,
-and persists the returned public URL. Product responses expose `image_url`; profile
+Restart the backend after changing environment values. The backend validates declared
+PNG/JPEG type and size, generates an actor/outlet-scoped object name, and returns a
+Supabase signed upload URL. The client uploads directly to Supabase. During the business
+mutation the backend downloads at most 3 MiB, validates the real signature, MIME,
+4096-pixel axis and 16-megapixel limits, then persists the public URL. Product responses expose `image_url`; profile
 responses expose `avatar_url`. Frontends render those URLs directly and never request
 image bytes from this API.
 
 Objects use these prefixes:
 
-- `outlets/{outlet_id}/products/{product_id}/images/{uuid}.{ext}`
+- `outlets/{outlet_id}/users/{actor_id}/product-images/{uuid}.{ext}`
 - `outlets/{outlet_id}/users/{user_id}/avatar/{uuid}.{ext}`
-- `outlets/{outlet_id}/cash-sessions/{session_id}/proofs/{uuid}.{ext}`
+- `outlets/{outlet_id}/cash-sessions/{session_id}/users/{actor_id}/requests/{request_id}/proofs/{uuid}.{ext}`
 
-Every image type uses the same shared uploader and receives a Supabase public URL.
+Every image type uses the same shared signer/completion validator and receives a Supabase public URL.
 PostgreSQL stores only that URL—never bytes, duplicate object names, tokens in separate
 columns, MIME metadata, or hashes. Product/avatar responses return their URL normally;
 cash-proof URLs require an authenticated same-outlet lookup.
@@ -42,14 +44,22 @@ their URL columns before rerunning the migration; it never discards an unresolve
 Migration `000017_add_supabase_identity` repeats the public-URL guard for upgraded
 databases and adds the unique nullable `users.supabase_user_id` binding.
 
-## Upload and bucket decision
+## Signed upload flow and cleanup
 
-Uploads stay backend-mediated rather than using signed upload URLs. The current 3 MiB
-limit is small, and the backend must inspect MIME, signature, dimensions, and decoded
-image content before accepting a reference. A direct signed upload would require a
-second finalize endpoint plus server-side object revalidation and orphan cleanup. Revisit
-signed/resumable uploads only if file sizes or upload traffic become large enough to make
-API bandwidth a demonstrated bottleneck.
+All image bytes bypass the DIKASA API:
+
+1. Call the feature upload-intent endpoint with `content_type` and `size`.
+2. `PUT` the bytes directly to the returned `upload_url` using the same content type.
+3. Send the returned `object_name` in the product, profile, or cash-movement mutation.
+4. The backend authorizes the same actor/outlet/resource binding, downloads the object
+   with a strict limit, validates its real content, and only then persists the public URL.
+
+Signed upload URLs currently expire after 7200 seconds and do not permit overwrite.
+Request a new intent after expiry; never retry with another actor's object name. Invalid
+objects and objects whose database adoption fails are deleted immediately. Operations
+must also run a scheduled reconciliation after the two-hour intent window: list image
+objects, retain every URL referenced by PostgreSQL, and delete older unreferenced objects.
+Do not apply an age-only bucket policy because live and abandoned objects share scoped prefixes.
 
 Use a separate Supabase project per environment, with a public bucket such as:
 
@@ -69,7 +79,8 @@ the full schemas and `api/bruno/catalog/` for requests.
 
 | Method/path | Access and behavior |
 | --- | --- |
-| `POST /products`, `PATCH /products/{id}` | Manager; multipart `image` uploads to Supabase and the response returns `image_url` |
+| `POST /products/image-upload-intents` | Manager; returns a 2-hour signed Supabase upload URL and actor-bound `object_name` |
+| `POST /products`, `PATCH /products/{id}` | Manager; optionally adopts a completed direct upload through `image_object_name` and returns `image_url` |
 | `GET /products/export.xlsx` | Manager; XLSX attachment for all matching catalog pages |
 | `POST /products/{id}/stock` | Manager; enable/disable tracking or update its threshold |
 | `POST /products/{id}/stock-adjustments` | Manager; change a tracked quantity with a reason |

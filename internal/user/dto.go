@@ -36,20 +36,43 @@ type ProfileOutput struct {
 
 // ProfileForm adalah field multipart opsional untuk edit profil sendiri.
 type ProfileForm struct {
-	DateOfBirth     string        `form:"date_of_birth" required:"false"`
-	GenderID        string        `form:"gender_id" required:"false"`
-	PersonalAddress string        `form:"personal_address" required:"false" maxLength:"1000"`
-	FirstName       string        `form:"first_name" required:"false" maxLength:"100"`
-	LastName        string        `form:"last_name" required:"false" maxLength:"100"`
-	PhoneNumber     string        `form:"phone_number" required:"false" minLength:"8" maxLength:"30"`
-	Email           string        `form:"email" required:"false" maxLength:"254"`
-	RemoveAvatar    bool          `form:"remove_avatar" required:"false"`
-	Avatar          huma.FormFile `form:"avatar" required:"false" contentType:"image/png,image/jpeg"`
+	DateOfBirth      string `form:"date_of_birth" required:"false"`
+	GenderID         string `form:"gender_id" required:"false"`
+	PersonalAddress  string `form:"personal_address" required:"false" maxLength:"1000"`
+	FirstName        string `form:"first_name" required:"false" maxLength:"100"`
+	LastName         string `form:"last_name" required:"false" maxLength:"100"`
+	PhoneNumber      string `form:"phone_number" required:"false" minLength:"8" maxLength:"30"`
+	Email            string `form:"email" required:"false" maxLength:"254"`
+	RemoveAvatar     bool   `form:"remove_avatar" required:"false"`
+	AvatarObjectName string `form:"avatar_object_name" required:"false" maxLength:"1024"`
 }
 
 // UpdateProfileInput adalah multipart edit profil user terautentikasi.
 type UpdateProfileInput struct {
 	RawBody huma.MultipartFormFiles[ProfileForm]
+}
+
+// AvatarUploadIntentRequest contains untrusted image hints used before signing.
+type AvatarUploadIntentRequest struct {
+	ContentType string `json:"content_type" enum:"image/png,image/jpeg"`
+	Size        int64  `json:"size" minimum:"1" doc:"Declared byte size; values above 3145728 return 413."`
+}
+
+// AvatarUploadIntentInput wraps one authenticated avatar signing request.
+type AvatarUploadIntentInput struct{ Body AvatarUploadIntentRequest }
+
+// AvatarUploadIntentData contains temporary direct-to-Supabase upload material.
+type AvatarUploadIntentData struct {
+	ObjectName string `json:"object_name"`
+	UploadURL  string `json:"upload_url" format:"uri"`
+	ExpiresIn  int    `json:"expires_in" minimum:"1"`
+}
+
+// AvatarUploadIntentOutput wraps one signed avatar upload intent.
+type AvatarUploadIntentOutput struct {
+	Body struct {
+		Data AvatarUploadIntentData `json:"data"`
+	}
 }
 
 // ChangePINRequest adalah payload perubahan PIN enam digit.

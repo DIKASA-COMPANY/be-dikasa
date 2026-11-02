@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"be-dikasa/internal/shared/supabasestorage"
 	"context"
 	"errors"
 )
@@ -52,8 +53,9 @@ type Repository interface {
 	SoftDeleteOrderType(context.Context, string, string) error
 }
 
-// ImageStore saves images and deletes them through their persisted Supabase URL.
+// ImageStore signs direct uploads, adopts verified objects, and deletes persisted images.
 type ImageStore interface {
-	Save(context.Context, string, string, *ImageUpload) (*StoredImage, error)
+	Prepare(context.Context, string, string, string, int64) (supabasestorage.SignedUpload, error)
+	Adopt(context.Context, string, string, string) (*StoredImage, error)
 	Delete(context.Context, string) error
 }

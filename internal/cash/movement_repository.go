@@ -115,11 +115,11 @@ func (r *MovementRepository) execute(ctx context.Context, actor, out, sid, rever
 		if _, e = FlowTotals(updated); e != nil {
 			return e
 		}
-		if c.Proof != nil {
+		if c.ProofObjectName != "" {
 			if proof == nil {
 				return ErrProofDisabled
 			}
-			o, e := proof.Save(ctx, out, sid, *c.Proof)
+			o, e := proof.Adopt(ctx, out, sid, actor, c.RequestID, c.ProofObjectName)
 			if e != nil {
 				return e
 			}

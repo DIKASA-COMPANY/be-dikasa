@@ -2,7 +2,6 @@ package cash
 
 import (
 	shared "be-dikasa/internal/shared/errors"
-	"be-dikasa/internal/shared/imagefile"
 	"context"
 	"errors"
 	"github.com/danielgtaylor/huma/v2"
@@ -35,18 +34,45 @@ type MovementRequestInput struct {
 
 // MovementForm includes no client-authoritative actor, outlet or time.
 type MovementForm struct {
-	RequestID string        `form:"request_id" required:"true" format:"uuid"`
-	Kind      string        `form:"kind" required:"true" enum:"in,out"`
-	Name      string        `form:"name" required:"true" minLength:"1" maxLength:"120"`
-	Amount    int64         `form:"amount" required:"true" minimum:"1" maximum:"9007199254740991"`
-	Reason    string        `form:"reason" required:"true" minLength:"1" maxLength:"500"`
-	Proof     huma.FormFile `form:"proof" required:"false" contentType:"image/png,image/jpeg"`
+	RequestID       string `form:"request_id" required:"true" format:"uuid"`
+	Kind            string `form:"kind" required:"true" enum:"in,out"`
+	Name            string `form:"name" required:"true" minLength:"1" maxLength:"120"`
+	Amount          int64  `form:"amount" required:"true" minimum:"1" maximum:"9007199254740991"`
+	Reason          string `form:"reason" required:"true" minLength:"1" maxLength:"500"`
+	ProofObjectName string `form:"proof_object_name" required:"false" maxLength:"1024"`
 }
 
 // MovementCreateInput is a bounded multipart request with optional evidence.
 type MovementCreateInput struct {
 	ID      string `path:"session_id" format:"uuid"`
 	RawBody huma.MultipartFormFiles[MovementForm]
+}
+
+// ProofUploadIntentRequest contains request binding and untrusted image hints.
+type ProofUploadIntentRequest struct {
+	RequestID   string `json:"request_id" format:"uuid"`
+	ContentType string `json:"content_type" enum:"image/png,image/jpeg"`
+	Size        int64  `json:"size" minimum:"1" doc:"Declared byte size; values above 3145728 return 413."`
+}
+
+// ProofUploadIntentInput scopes a signed proof upload to one cash session.
+type ProofUploadIntentInput struct {
+	ID   string `path:"session_id" format:"uuid"`
+	Body ProofUploadIntentRequest
+}
+
+// ProofUploadIntentData contains temporary direct-to-Supabase upload material.
+type ProofUploadIntentData struct {
+	ObjectName string `json:"object_name"`
+	UploadURL  string `json:"upload_url" format:"uri"`
+	ExpiresIn  int    `json:"expires_in" minimum:"1"`
+}
+
+// ProofUploadIntentOutput wraps one signed cash-proof upload intent.
+type ProofUploadIntentOutput struct {
+	Body struct {
+		Data ProofUploadIntentData `json:"data"`
+	}
 }
 
 // MovementReverseInput allows a reason and a new request UUID, never a changed original amount.
@@ -125,17 +151,7 @@ func (h *MovementHandler) Create(ctx context.Context, in *MovementCreateInput) (
 		return nil, e
 	}
 	f := in.RawBody.Data()
-	c := MovementCommand{RequestID: f.RequestID, Kind: f.Kind, Name: f.Name, Amount: f.Amount, Reason: f.Reason}
-	if f.Proof.IsSet {
-		v, e := imagefile.Validate(imagefile.Upload{Reader: f.Proof.File, Size: f.Proof.Size, Filename: f.Proof.Filename, ContentType: f.Proof.ContentType}, imagefile.StandardPolicy)
-		if errors.Is(e, imagefile.ErrTooLarge) {
-			return nil, movementError(ErrProofTooLarge)
-		}
-		if e != nil {
-			return nil, movementError(ErrProofInvalid)
-		}
-		c.Proof = &v
-	}
+	c := MovementCommand{RequestID: f.RequestID, Kind: f.Kind, Name: f.Name, Amount: f.Amount, Reason: f.Reason, ProofObjectName: f.ProofObjectName}
 	m, e := h.s.Create(ctx, a, in.ID, c)
 	if e != nil {
 		return nil, movementError(e)
@@ -143,6 +159,21 @@ func (h *MovementHandler) Create(ctx context.Context, in *MovementCreateInput) (
 	o := &MovementOutput{}
 	o.Body.Data = m
 	return o, nil
+}
+
+// PrepareProofUpload creates an authorized signed URL without receiving proof bytes.
+func (h *MovementHandler) PrepareProofUpload(ctx context.Context, in *ProofUploadIntentInput) (*ProofUploadIntentOutput, error) {
+	a, err := closingIdentity(ctx)
+	if err != nil {
+		return nil, err
+	}
+	intent, err := h.s.PrepareProofUpload(ctx, a, in.ID, in.Body.RequestID, in.Body.ContentType, in.Body.Size)
+	if err != nil {
+		return nil, movementError(err)
+	}
+	output := &ProofUploadIntentOutput{}
+	output.Body.Data = ProofUploadIntentData{ObjectName: intent.ObjectName, UploadURL: intent.UploadURL, ExpiresIn: intent.ExpiresIn}
+	return output, nil
 }
 
 // Reverse records a linked opposite entry with its own reason and identity.

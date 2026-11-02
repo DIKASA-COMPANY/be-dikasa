@@ -21,7 +21,7 @@ Apply these invariants to every backend implementation and review in this reposi
 - Use migrations for every schema change. Keep GORM models and SQL constraints aligned. PostgreSQL stores image URLs only, never image bytes or duplicate object metadata.
 - Use Supabase Auth for runtime tokens and identity verification. Keep provider identities bound through `users.supabase_user_id`; do not add a local-token runtime mode.
 - Read Supabase configuration only from `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, and `SUPABASE_STORAGE_BUCKET`. Never expose or commit the secret key.
-- Store every uploaded image only in Supabase Storage through the shared uploader. Require a public bucket, validate files with the shared image policy, persist only the resulting public URL in PostgreSQL, and return that URL for clients to render rather than proxying file bytes.
+- Store every uploaded image only in Supabase Storage. Use the dedicated `supabase-presigned-image-upload` skill: the backend issues an authorized signed upload URL, the client uploads bytes directly to Supabase, and the backend verifies the stored object before persisting only its public URL in PostgreSQL. Never proxy image bytes through a DIKASA business endpoint.
 - Keep object names tenant-scoped and collision-safe. Follow `outlets/{outlet_id}/<feature>/<resource_id>/<purpose>/{uuid}.{ext}` unless an established feature prefix is more specific.
 
 ## Test-first workflow

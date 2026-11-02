@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"be-dikasa/internal/shared/supabasestorage"
 	"context"
 	"errors"
 	"strings"
@@ -89,6 +90,15 @@ func (service *Service) GetProduct(ctx context.Context, userID, productID string
 	return service.repository.FindProduct(ctx, outletID, productID, includeInactive)
 }
 
+// PrepareProductImageUpload authorizes a manager before issuing a direct Supabase upload URL.
+func (service *Service) PrepareProductImageUpload(ctx context.Context, userID, contentType string, size int64) (supabasestorage.SignedUpload, error) {
+	outletID, err := service.scope(ctx, userID, true)
+	if err != nil {
+		return supabasestorage.SignedUpload{}, err
+	}
+	return service.images.Prepare(ctx, outletID, userID, contentType, size)
+}
+
 // CreateProduct membuat produk baru setelah kategori dan gambar tervalidasi.
 func (service *Service) CreateProduct(ctx context.Context, userID string, mutation ProductMutation) (*Product, error) {
 	outletID, err := service.scope(ctx, userID, true)
@@ -120,8 +130,8 @@ func (service *Service) CreateProduct(ctx context.Context, userID string, mutati
 	for index := range product.Variants {
 		product.Variants[index].ProductID = product.ID
 	}
-	if mutation.Image != nil {
-		stored, saveErr := service.images.Save(ctx, outletID, product.ID, mutation.Image)
+	if mutation.ImageObjectName != "" {
+		stored, saveErr := service.images.Adopt(ctx, outletID, userID, mutation.ImageObjectName)
 		if saveErr != nil {
 			return nil, saveErr
 		}
@@ -168,8 +178,8 @@ func (service *Service) UpdateProduct(ctx context.Context, userID, productID str
 	}
 	oldURL := product.ImageURL
 	var uploaded *StoredImage
-	if mutation.Image != nil {
-		uploaded, err = service.images.Save(ctx, outletID, product.ID, mutation.Image)
+	if mutation.ImageObjectName != "" {
+		uploaded, err = service.images.Adopt(ctx, outletID, userID, mutation.ImageObjectName)
 		if err != nil {
 			return nil, err
 		}
@@ -230,7 +240,7 @@ func (service *Service) UpdateProduct(ctx context.Context, userID, productID str
 		}
 		return nil, err
 	}
-	if oldURL != nil && (uploaded != nil || (isSet("remove_image") && mutation.RemoveImage)) {
+	if oldURL != nil && (uploaded == nil || *oldURL != uploaded.URL) && (uploaded != nil || (isSet("remove_image") && mutation.RemoveImage)) {
 		_ = service.images.Delete(ctx, *oldURL)
 	}
 	return product, nil

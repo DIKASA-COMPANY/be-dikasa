@@ -45,7 +45,9 @@ Catalog resources use `/products` (never `/foods`, `/drinks`, or `/list`). Use
 the exact query key `searchByProductName` for case-insensitive partial name
 searches. Product writes are multipart requests and are restricted to managers.
 The Figma-aligned product form uses `product_type`, `selling_price`, optional
-online/cost prices, `stock_status`, and an optional JSON `variations` part.
+online/cost prices, `stock_status`, an optional JSON `variations` part, and optional
+`image_object_name`. Obtain that object name from `POST /products/image-upload-intents`
+and upload bytes directly to the returned Supabase URL before the mutation.
 Responses retain `price` as an alias of `selling_price` for existing POS clients.
 
 Reservation resources use `/reservation-types`, `/restaurant-tables`, and
@@ -54,7 +56,8 @@ their own outlet; only managers can configure restaurant tables. The
 `print_reservation` and `send_reservation` flags are stored without invoking an
 external print or messaging provider.
 
-Account settings use `PATCH /users/me` for multipart profile/avatar changes,
+Account settings use `POST /users/me/avatar-upload-intents` followed by direct
+Supabase upload and `PATCH /users/me` with `avatar_object_name` for avatar changes,
 `PATCH /users/me/pin` for six-digit PIN changes, and
 `PATCH /users/me/password` for password changes. Role and outlet are read-only.
 
@@ -62,10 +65,11 @@ See the root `README.md` for the full local setup and Bruno walkthrough.
 Run `make migrate-supabase-users` after migration 000017 to import active bcrypt
 accounts in bulk; `/login` retains a rolling-migration fallback.
 
-Product photos and profile avatars are validated by the backend and uploaded to
-Supabase Storage. API responses contain public bucket URLs that clients render
-directly; the API does not proxy image bytes. Cash proof uploads use the same mechanism,
-but their URL is returned only after the authenticated same-outlet proof lookup.
+Product photos, profile avatars, and cash proofs use server-issued Supabase signed
+upload URLs. Clients upload bytes directly to Storage; the backend then downloads a
+bounded object, validates the real PNG/JPEG content, and persists its public URL.
+The API never accepts or proxies image bytes. Cash-proof URLs remain available only
+through the authenticated same-outlet proof lookup.
 PostgreSQL remains the primary database and persists only each resulting URL, never
 file bytes or duplicate object metadata. Shared quantitative stock,
 deduplicated stock adjustments/history, and manager XLSX exports are described in

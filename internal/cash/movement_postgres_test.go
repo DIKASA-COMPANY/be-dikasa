@@ -5,7 +5,6 @@ import (
 	"be-dikasa/internal/catalog"
 	"be-dikasa/internal/payment"
 	"be-dikasa/internal/refund"
-	"be-dikasa/internal/shared/imagefile"
 	"be-dikasa/internal/shared/supabasestorage"
 	"be-dikasa/internal/user"
 	"bytes"
@@ -20,7 +19,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"net/textproto"
 	"strings"
 	"sync"
 	"testing"
@@ -41,21 +39,42 @@ func newIntegrationProofStore(t *testing.T) (*cash.SupabaseMovementProofStore, *
 	t.Helper()
 	bucket := &integrationProofBucket{objects: map[string]integrationProofObject{}}
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		name := strings.TrimPrefix(request.URL.Path, "/storage/v1/object/dikasa-images/")
 		bucket.mu.Lock()
 		defer bucket.mu.Unlock()
+		if request.Method == http.MethodPost && strings.HasPrefix(request.URL.Path, "/storage/v1/object/upload/sign/dikasa-images/") {
+			name := strings.TrimPrefix(request.URL.Path, "/storage/v1/object/upload/sign/dikasa-images/")
+			writer.Header().Set("Content-Type", "application/json")
+			_, _ = writer.Write([]byte(`{"url":"/object/upload/sign/dikasa-images/` + name + `?token=integration-token"}`))
+			return
+		}
+		if request.Method == http.MethodPut && strings.HasPrefix(request.URL.Path, "/storage/v1/object/upload/sign/dikasa-images/") {
+			name := strings.TrimPrefix(request.URL.Path, "/storage/v1/object/upload/sign/dikasa-images/")
+			content, err := io.ReadAll(request.Body)
+			if err != nil {
+				writer.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			bucket.objects[name] = integrationProofObject{contentType: request.Header.Get("Content-Type"), content: content}
+			writer.WriteHeader(http.StatusOK)
+			return
+		}
+		name := strings.TrimPrefix(request.URL.Path, "/storage/v1/object/dikasa-images/")
 		if request.Method == http.MethodDelete {
 			delete(bucket.objects, name)
 			writer.WriteHeader(http.StatusOK)
 			return
 		}
-		content, err := io.ReadAll(request.Body)
-		if err != nil {
-			writer.WriteHeader(http.StatusBadRequest)
+		if request.Method == http.MethodGet {
+			object, ok := bucket.objects[name]
+			if !ok {
+				writer.WriteHeader(http.StatusNotFound)
+				return
+			}
+			writer.Header().Set("Content-Type", object.contentType)
+			_, _ = writer.Write(object.content)
 			return
 		}
-		bucket.objects[name] = integrationProofObject{contentType: request.Header.Get("Content-Type"), content: content}
-		writer.WriteHeader(http.StatusOK)
+		writer.WriteHeader(http.StatusMethodNotAllowed)
 	}))
 	t.Cleanup(server.Close)
 	uploader, err := supabasestorage.NewUploader(server.URL, "dikasa-images", "secret", supabasestorage.WithHTTPClient(server.Client()))
@@ -63,6 +82,23 @@ func newIntegrationProofStore(t *testing.T) (*cash.SupabaseMovementProofStore, *
 		t.Fatal(err)
 	}
 	return cash.NewSupabaseMovementProofStore(uploader), bucket
+}
+
+func uploadSignedProof(t *testing.T, intent supabasestorage.SignedUpload, content []byte) {
+	t.Helper()
+	request, err := http.NewRequest(http.MethodPut, intent.UploadURL, bytes.NewReader(content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "image/png")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("signed upload status %d", response.StatusCode)
+	}
 }
 
 func TestMovementPostgresConcurrentOutflowReplayAndClose(t *testing.T) {
@@ -160,11 +196,13 @@ func TestMovementPrivateProofAndActorPermissions(t *testing.T) {
 	svc := cash.NewMovementService(cash.NewMovementRepository(db), user.NewGORMRepository(db), store, nil)
 	var b bytes.Buffer
 	png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 2, 2)))
-	v, e := imagefile.Validate(imagefile.Upload{Reader: bytes.NewReader(b.Bytes()), Size: int64(b.Len()), Filename: "evidence.png", ContentType: "image/png"}, imagefile.StandardPolicy)
+	directRequestID := uuid.NewString()
+	intent, e := svc.PrepareProofUpload(ctx, a.ID, sid, directRequestID, "image/png", int64(b.Len()))
 	if e != nil {
 		t.Fatal(e)
 	}
-	m, e := svc.Create(ctx, a.ID, sid, cash.MovementCommand{RequestID: uuid.NewString(), Kind: "in", Amount: 100, Name: "Float", Reason: "Additional change", Proof: &v})
+	uploadSignedProof(t, intent, b.Bytes())
+	m, e := svc.Create(ctx, a.ID, sid, cash.MovementCommand{RequestID: directRequestID, Kind: "in", Amount: 100, Name: "Float", Reason: "Additional change", ProofObjectName: intent.ObjectName})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -177,21 +215,18 @@ func TestMovementPrivateProofAndActorPermissions(t *testing.T) {
 	authctx := user.WithAuthenticatedUserID(ctx, a.ID)
 	// Real multipart create/replay with proof, rather than only service-level fixtures.
 	requestID := uuid.NewString()
+	httpIntent, e := svc.PrepareProofUpload(ctx, a.ID, sid, requestID, "image/png", int64(b.Len()))
+	if e != nil {
+		t.Fatal(e)
+	}
+	uploadSignedProof(t, httpIntent, b.Bytes())
 	var form bytes.Buffer
 	writer := multipart.NewWriter(&form)
-	for key, value := range map[string]string{"request_id": requestID, "kind": "in", "amount": "250", "name": "HTTP Float", "reason": "Actual multipart contract"} {
+	for key, value := range map[string]string{"request_id": requestID, "kind": "in", "amount": "250", "name": "HTTP Float", "reason": "Actual multipart contract", "proof_object_name": httpIntent.ObjectName} {
 		if e := writer.WriteField(key, value); e != nil {
 			t.Fatal(e)
 		}
 	}
-	header := textproto.MIMEHeader{}
-	header.Set("Content-Disposition", `form-data; name="proof"; filename="evidence.png"`)
-	header.Set("Content-Type", "image/png")
-	part, e := writer.CreatePart(header)
-	if e != nil {
-		t.Fatal(e)
-	}
-	part.Write(b.Bytes())
 	writer.Close()
 	var createdID string
 	for i := 0; i < 2; i++ {
@@ -320,15 +355,17 @@ func TestMovementRollbackRemovesUnreferencedProof(t *testing.T) {
 	store, bucket := newIntegrationProofStore(t)
 	var b bytes.Buffer
 	png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 2, 2)))
-	v, e := imagefile.Validate(imagefile.Upload{Reader: bytes.NewReader(b.Bytes()), Size: int64(b.Len()), Filename: "p.png", ContentType: "image/png"}, imagefile.StandardPolicy)
-	if e != nil {
-		t.Fatal(e)
-	}
-	if e = db.Exec(`CREATE FUNCTION reject_cash_movement() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected failure'; END $$; CREATE TRIGGER reject_movement BEFORE INSERT ON cash_movements FOR EACH ROW EXECUTE FUNCTION reject_cash_movement();`).Error; e != nil {
+	if e := db.Exec(`CREATE FUNCTION reject_cash_movement() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected failure'; END $$; CREATE TRIGGER reject_movement BEFORE INSERT ON cash_movements FOR EACH ROW EXECUTE FUNCTION reject_cash_movement();`).Error; e != nil {
 		t.Fatal(e)
 	}
 	svc := cash.NewMovementService(cash.NewMovementRepository(db), user.NewGORMRepository(db), store, nil)
-	_, e = svc.Create(ctx, a.ID, sid, cash.MovementCommand{RequestID: uuid.NewString(), Kind: "in", Amount: 10, Name: "Float", Reason: "Failure injection", Proof: &v})
+	requestID := uuid.NewString()
+	intent, e := svc.PrepareProofUpload(ctx, a.ID, sid, requestID, "image/png", int64(b.Len()))
+	if e != nil {
+		t.Fatal(e)
+	}
+	uploadSignedProof(t, intent, b.Bytes())
+	_, e = svc.Create(ctx, a.ID, sid, cash.MovementCommand{RequestID: requestID, Kind: "in", Amount: 10, Name: "Float", Reason: "Failure injection", ProofObjectName: intent.ObjectName})
 	if e == nil {
 		t.Fatal("write failure hidden")
 	}
