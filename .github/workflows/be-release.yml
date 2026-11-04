@@ -1,0 +1,88 @@
+name: Backend release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-release-main
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/be-ci.yml
+
+  image:
+    name: Build and scan release image
+    needs: ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Select GHCR image repository
+        id: registry
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        id: image
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.registry.outputs.image }}:sha-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Scan the exact release digest
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: ${{ steps.registry.outputs.image }}@${{ steps.image.outputs.digest }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Create immutable release manifest
+        env:
+          RELEASE_RUN_ID: ${{ github.run_id }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: python3 scripts/cicd/release.py manifest
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-release
+          path: release.json
+          retention-days: 90
+          if-no-files-found: error
+      - name: Summarize release
+        run: |
+          printf 'Release run: `%s`\n\n' "$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+          cat release.json >> "$GITHUB_STEP_SUMMARY"
+
+  dev:
+    needs: image
+    if: vars.KOYEB_DEPLOY_ENABLED == 'true'
+    uses: ./.github/workflows/reusable-deploy.yml
+    permissions:
+      contents: read
+      actions: read
+      deployments: write
+      packages: read
+    with:
+      environment: dev
+      release_run_id: ${{ github.run_id }}
+    secrets: inherit

@@ -1,2 +1,5 @@
 .env
 *.service-account.json
+gha-creds-*.json
+__pycache__/
+coverage.out

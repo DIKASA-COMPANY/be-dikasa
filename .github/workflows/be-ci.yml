@@ -1,0 +1,122 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Format, vet and contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+      - run: go mod download && go mod verify
+      - name: Check Go formatting
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Enforce formatting on changed files; legacy untouched files predate this CI.
+          [[ "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          mapfile -d '' files < <(git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" HEAD -- '*.go')
+          if (( ${#files[@]} )); then
+            unformatted=$(gofmt -l "${files[@]}")
+            if [[ -n "$unformatted" ]]; then printf '%s\n' "$unformatted"; exit 1; fi
+          fi
+      - run: go vet ./...
+      - name: Check generated OpenAPI
+        run: |
+          go generate ./internal/server
+          git diff --exit-code -- api/openapi.yaml
+      - name: Test promotion gates
+        run: python3 -m unittest discover -s scripts/cicd -p 'test_*.py'
+      - name: Check deployment shell scripts
+        run: |
+          shellcheck deploy/*.sh
+          for script in deploy/*.sh; do bash -n "$script"; done
+      - name: Validate GitHub Actions workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+  unit:
+    name: Unit tests with race detector
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+      - run: go test -race -count=1 -coverprofile=coverage.out ./...
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-${{ github.run_id }}
+          path: coverage.out
+          retention-days: 14
+
+  integration:
+    name: PostgreSQL integration and migration safety
+    needs: unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: dikasa
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: dikasa_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U dikasa -d dikasa_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DIKASA_TEST_DATABASE_URL: postgres://dikasa:ci-only-password@localhost:5432/dikasa_ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+      - name: Verify migration replay, drift and transaction rollback
+        env:
+          DATABASE_URL: ${{ env.DIKASA_TEST_DATABASE_URL }}
+        run: bash deploy/test-migrate.sh
+      # Initialize pgcrypto once before packages run isolated integration schemas in parallel.
+      - run: go test -race -count=1 ./...
+
+  build:
+    name: Build validation
+    needs: integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+      - run: go build ./...
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      # A main release builds the deployable image only in be-release.yml.
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        if: github.event_name == 'pull_request'
+        with:
+          context: .
+          push: false
+          platforms: linux/amd64

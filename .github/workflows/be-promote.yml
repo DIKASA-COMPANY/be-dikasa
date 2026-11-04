@@ -1,0 +1,34 @@
+name: Backend promote or rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_run_id:
+        description: Successful Backend release run ID (contains backend-release manifest)
+        required: true
+        type: string
+      environment:
+        description: Destination (forward order dev to sit to uat to stg to prd)
+        required: true
+        type: choice
+        options: [sit, uat, stg, prd, dev]
+      rollback:
+        description: Restore a release previously successful in this destination (no down migrations)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+  deployments: write
+  packages: read
+
+jobs:
+  promote:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: ${{ inputs.environment }}
+      release_run_id: ${{ inputs.release_run_id }}
+      rollback: ${{ inputs.rollback }}
+    secrets: inherit

@@ -1,5 +1,10 @@
 # Dikasa Backend
 
+CI/CD backend menggunakan GitHub Actions, image immutable di GHCR, dan deployment
+Koyeb `dev → sit → uat → stg → prd`, tanpa Firebase App Distribution.
+CI/build/publish dapat berjalan sebelum deployment diaktifkan. Lihat
+[konfigurasi Koyeb, migrasi, promosi, dan rollback](docs/development/cicd.md).
+
 Product, avatar, and cash-proof uploads use Supabase Storage signed upload URLs exclusively.
 The backend authorizes an intent, the client uploads directly to Supabase, and the backend
 validates the stored image before persisting its public URL.

@@ -1,1 +1,7 @@
 api/openapi.yaml text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+.github/** text eol=lf
+deploy/** text eol=lf
+scripts/cicd/** text eol=lf
+migrations/*.sql text eol=lf
