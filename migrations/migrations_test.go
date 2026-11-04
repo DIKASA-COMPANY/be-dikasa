@@ -185,8 +185,10 @@ func TestMakefileAppliesAndRollsBackMigrationsInOrder(t *testing.T) {
 		"migrations/000014_add_user_personal_address.down.sql",
 		"migrations/000015_create_cash_movements.up.sql",
 		"migrations/000015_create_cash_movements.down.sql",
-		"migrations/000016_store_only_firebase_image_urls.up.sql",
-		"migrations/000016_store_only_firebase_image_urls.down.sql",
+		"migrations/000016_store_only_image_urls.up.sql",
+		"migrations/000016_store_only_image_urls.down.sql",
+		"migrations/000017_add_supabase_identity.up.sql",
+		"migrations/000017_add_supabase_identity.down.sql",
 	} {
 		if !strings.Contains(makefile, migration) {
 			t.Errorf("Makefile must run %s", migration)
@@ -215,16 +217,16 @@ func TestMakefileAppliesAndRollsBackMigrationsInOrder(t *testing.T) {
 	}
 }
 
-func TestFirebaseURLOnlyMigrationRemovesObjectMetadata(t *testing.T) {
-	content, err := os.ReadFile("000016_store_only_firebase_image_urls.up.sql")
+func TestURLOnlyMigrationRemovesObjectMetadata(t *testing.T) {
+	content, err := os.ReadFile("000016_store_only_image_urls.up.sql")
 	if err != nil {
-		t.Fatalf("read Firebase URL-only migration: %v", err)
+		t.Fatalf("read URL-only migration: %v", err)
 	}
 	sql := strings.ToLower(string(content))
 	for _, fragment := range []string{
 		"from products where image_url is not null",
 		"from users where avatar_url is not null",
-		"firebasestorage.googleapis.com",
+		"supabase.co/storage/v1/object/public",
 		"drop column image_object_name",
 		"drop column avatar_object_name",
 		"add column proof_url text",
@@ -235,6 +237,22 @@ func TestFirebaseURLOnlyMigrationRemovesObjectMetadata(t *testing.T) {
 	} {
 		if !strings.Contains(sql, fragment) {
 			t.Errorf("URL-only migration must contain %q", fragment)
+		}
+	}
+}
+
+func TestSupabaseIdentityMigrationAddsUniqueBindingAndRejectsForeignMedia(t *testing.T) {
+	content, err := os.ReadFile("000017_add_supabase_identity.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := strings.ToLower(string(content))
+	for _, fragment := range []string{
+		"add column supabase_user_id uuid", "unique index users_supabase_user_id_uidx",
+		"where supabase_user_id is not null", "supabase.co/storage/v1/object/public",
+	} {
+		if !strings.Contains(sql, fragment) {
+			t.Errorf("Supabase identity migration must contain %q", fragment)
 		}
 	}
 }

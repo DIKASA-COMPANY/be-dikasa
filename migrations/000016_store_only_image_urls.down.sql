@@ -1,7 +1,7 @@
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM cash_movements WHERE proof_url IS NOT NULL) THEN
-        RAISE EXCEPTION 'Refusing to discard persisted Firebase proof URLs';
+        RAISE EXCEPTION 'Refusing to discard persisted proof URLs';
     END IF;
 END $$;
 

@@ -17,7 +17,7 @@ type ProductData struct {
 	LowStockThreshold    int64                `json:"low_stock_threshold" minimum:"0"`
 	EffectiveStockStatus string               `json:"effective_stock_status" enum:"available,low_stock,out_of_stock"`
 	Description          string               `json:"description"`
-	ImageURL             *string              `json:"image_url,omitempty" format:"uri" doc:"Firebase Storage download URL; render directly and do not proxy through the API"`
+	ImageURL             *string              `json:"image_url,omitempty" format:"uri" doc:"Supabase Storage public URL; render directly and do not proxy through the API"`
 	IsHighlighted        bool                 `json:"is_highlighted"`
 	SortOrder            int                  `json:"sort_order"`
 	IsActive             bool                 `json:"is_active"`
@@ -76,7 +76,7 @@ type OrderTypeData struct {
 	IsActive  bool    `json:"is_active"`
 }
 
-// ProductForm adalah field multipart untuk create dan update produk.
+// ProductForm adalah field multipart tanpa byte gambar untuk create produk.
 type ProductForm struct {
 	Name               string                  `form:"name" required:"true" maxLength:"150"`
 	CategoryID         string                  `form:"category_id" required:"true" format:"uuid"`
@@ -92,7 +92,7 @@ type ProductForm struct {
 	SortOrder          int                     `form:"sort_order" required:"false"`
 	IsActive           bool                    `form:"is_active" required:"false"`
 	RemoveImage        bool                    `form:"remove_image" required:"false"`
-	Image              huma.FormFile           `form:"image" required:"false" contentType:"image/png,image/jpeg"`
+	ImageObjectName    string                  `form:"image_object_name" required:"false" maxLength:"1024"`
 }
 
 // ProductPatchForm adalah field multipart opsional untuk PATCH produk.
@@ -111,7 +111,7 @@ type ProductPatchForm struct {
 	SortOrder          int                     `form:"sort_order" required:"false"`
 	IsActive           bool                    `form:"is_active" required:"false"`
 	RemoveImage        bool                    `form:"remove_image" required:"false"`
-	Image              huma.FormFile           `form:"image" required:"false" contentType:"image/png,image/jpeg"`
+	ImageObjectName    string                  `form:"image_object_name" required:"false" maxLength:"1024"`
 }
 
 // ListProductsInput adalah query filter endpoint list produk.
@@ -139,6 +139,31 @@ type ProductMutationInput struct {
 // ProductCreateInput adalah multipart pembuatan produk.
 type ProductCreateInput struct {
 	RawBody huma.MultipartFormFiles[ProductForm]
+}
+
+// ProductImageUploadIntentRequest contains untrusted client hints used before signing.
+type ProductImageUploadIntentRequest struct {
+	ContentType string `json:"content_type" enum:"image/png,image/jpeg"`
+	Size        int64  `json:"size" minimum:"1" doc:"Declared byte size; values above 3145728 return 413."`
+}
+
+// ProductImageUploadIntentInput wraps one manager-authorized signing request.
+type ProductImageUploadIntentInput struct {
+	Body ProductImageUploadIntentRequest
+}
+
+// ProductImageUploadIntentData contains temporary direct-to-Supabase upload material.
+type ProductImageUploadIntentData struct {
+	ObjectName string `json:"object_name"`
+	UploadURL  string `json:"upload_url" format:"uri"`
+	ExpiresIn  int    `json:"expires_in" minimum:"1" doc:"Masa berlaku signed upload URL dalam detik."`
+}
+
+// ProductImageUploadIntentOutput wraps one signed product-image upload intent.
+type ProductImageUploadIntentOutput struct {
+	Body struct {
+		Data ProductImageUploadIntentData `json:"data"`
+	}
 }
 
 // ProductDeleteInput adalah path soft delete produk.

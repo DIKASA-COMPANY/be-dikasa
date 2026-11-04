@@ -1,4 +1,4 @@
-.PHONY: run test test-cover vet fmt openapi migrate-up migrate-down
+.PHONY: run test test-cover vet fmt openapi migrate-up migrate-down migrate-supabase-users
 
 run:
 	go run ./cmd/api
@@ -18,6 +18,9 @@ fmt:
 openapi:
 	go generate ./internal/server
 
+migrate-supabase-users:
+	go run ./cmd/migrate-supabase-users
+
 migrate-up:
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f migrations/000001_create_identity_tables.up.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -f migrations/000002_add_registration_otp.up.sql
@@ -34,10 +37,12 @@ migrate-up:
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000013_add_sale_category_snapshots.up.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000014_add_user_personal_address.up.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000015_create_cash_movements.up.sql
-	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000016_store_only_firebase_image_urls.up.sql
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000016_store_only_image_urls.up.sql
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000017_add_supabase_identity.up.sql
 
 migrate-down:
-	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000016_store_only_firebase_image_urls.down.sql
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000017_add_supabase_identity.down.sql
+	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000016_store_only_image_urls.down.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000015_create_cash_movements.down.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000014_add_user_personal_address.down.sql
 	psql "$(DATABASE_URL)" -v ON_ERROR_STOP=1 -1 -f migrations/000013_add_sale_category_snapshots.down.sql

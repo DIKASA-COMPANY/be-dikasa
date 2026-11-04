@@ -23,3 +23,15 @@ type Repository interface {
 	FindByIdentifier(ctx context.Context, identifier string) (*User, error)
 	FindByID(ctx context.Context, id string) (*User, error)
 }
+
+// SupabaseIdentityRepository resolves and binds Supabase Auth identities to Dikasa users.
+type SupabaseIdentityRepository interface {
+	FindBySupabaseUserID(ctx context.Context, supabaseUserID string) (*User, error)
+	BindSupabaseUserID(ctx context.Context, userID, supabaseUserID string) error
+}
+
+// SupabaseMigrationRepository lists active email accounts awaiting Auth migration.
+type SupabaseMigrationRepository interface {
+	ListUnboundSupabaseUsers(ctx context.Context, limit int) ([]User, error)
+	BindSupabaseUserID(ctx context.Context, userID, supabaseUserID string) error
+}

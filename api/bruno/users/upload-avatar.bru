@@ -1,7 +1,7 @@
 meta {
-  name: Upload My Firebase Avatar
+  name: Adopt My Supabase Avatar
   type: http
-  seq: 24
+  seq: 27
 }
 
 patch {
@@ -15,7 +15,7 @@ auth:bearer {
 }
 
 body:multipart-form {
-  avatar: @file({{profileImagePath}})
+  avatar_object_name: {{avatarObjectName}}
   remove_avatar: false
 }
 
@@ -25,11 +25,11 @@ assert {
 }
 
 tests {
-  test("avatar is a Firebase download URL", function () {
-    expect(res.body.data.avatar_url).to.match(/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\//);
+  test("avatar is a Supabase public URL", function () {
+    expect(res.body.data.avatar_url).to.match(/^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\//);
   });
 }
 
 docs {
-  The backend validates and uploads the avatar to Firebase Storage. The response contains the Google download URL; clients render that URL directly.
+  First create an avatar upload intent, PUT the PNG/JPEG bytes directly to avatarUploadUrl, then send its exact avatarObjectName here. The backend revalidates the stored object before persisting its public URL.
 }

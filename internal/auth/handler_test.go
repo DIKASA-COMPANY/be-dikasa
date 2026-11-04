@@ -19,10 +19,10 @@ func (stub stubSignInProvider) SignIn(_ context.Context, _, _ string) (Session, 
 	return stub.session, stub.err
 }
 
-func TestLoginReturnsFirebaseSession(t *testing.T) {
+func TestLoginReturnsSupabaseSession(t *testing.T) {
 	handler := NewHandler(stubSignInProvider{session: Session{
-		IDToken: "firebase-id-token", RefreshToken: "firebase-refresh-token",
-		ExpiresIn: 3600, FirebaseUID: "firebase-user-id",
+		AccessToken: "supabase-access-token", RefreshToken: "supabase-refresh-token",
+		ExpiresIn: 3600, SupabaseUserID: "supabase-user-id",
 	}}, sharedvalidator.New())
 
 	output, err := handler.Login(context.Background(), &LoginInput{Body: LoginRequest{
@@ -32,7 +32,7 @@ func TestLoginReturnsFirebaseSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
-	if output.Body.Data.AccessToken != "firebase-id-token" || output.Body.Data.TokenType != "Bearer" {
+	if output.Body.Data.AccessToken != "supabase-access-token" || output.Body.Data.TokenType != "Bearer" {
 		t.Fatalf("unexpected login output: %+v", output.Body.Data)
 	}
 }
@@ -65,7 +65,7 @@ func TestLoginMapsProviderErrors(t *testing.T) {
 	}{
 		{"invalid credentials", ErrInvalidCredentials, http.StatusUnauthorized, "KREDENSIAL_TIDAK_VALID"},
 		{"disabled user", ErrUserDisabled, http.StatusForbidden, "AKUN_DINONAKTIFKAN"},
-		{"provider unavailable", ErrProviderUnavailable, http.StatusBadGateway, "FIREBASE_TIDAK_TERSEDIA"},
+		{"provider unavailable", ErrProviderUnavailable, http.StatusBadGateway, "SUPABASE_TIDAK_TERSEDIA"},
 		{"unexpected", errors.New("secret internal error"), http.StatusInternalServerError, "KESALAHAN_INTERNAL"},
 	}
 

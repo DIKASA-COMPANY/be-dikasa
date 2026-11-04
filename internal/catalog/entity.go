@@ -2,7 +2,6 @@
 package catalog
 
 import (
-	"io"
 	"time"
 )
 
@@ -108,14 +107,6 @@ type OrderType struct {
 // TableName menetapkan tabel jenis order.
 func (OrderType) TableName() string { return "order_types" }
 
-// ImageUpload adalah file gambar yang akan divalidasi dan disimpan.
-type ImageUpload struct {
-	Reader      io.ReadSeeker
-	Size        int64
-	ContentType string
-	Filename    string
-}
-
 // StoredImage contains the only image reference persisted in PostgreSQL.
 type StoredImage struct{ URL string }
 
@@ -128,7 +119,7 @@ type ProductMutation struct {
 	Variations                                     []ProductVariantMutation
 	IsHighlighted, IsActive                        bool
 	SortOrder                                      int
-	Image                                          *ImageUpload
+	ImageObjectName                                string
 	RemoveImage                                    bool
 	Fields                                         map[string]bool
 }

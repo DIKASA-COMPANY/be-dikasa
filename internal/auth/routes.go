@@ -13,7 +13,7 @@ func RegisterRoutes(api huma.API, handler *Handler) {
 		Method:      http.MethodPost,
 		Path:        "/login",
 		Summary:     "Masuk ke aplikasi",
-		Description: "Memvalidasi kredensial PostgreSQL lalu menerbitkan Firebase ID token dan refresh token.",
+		Description: "Memvalidasi kredensial PostgreSQL, memigrasikan akun lama bila perlu, lalu menerbitkan access dan refresh token Supabase.",
 		Tags:        []string{"Autentikasi"},
 		Security:    []map[string][]string{},
 		Errors: []int{

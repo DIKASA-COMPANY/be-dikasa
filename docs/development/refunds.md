@@ -10,7 +10,7 @@ Existing databases require **only migration000011** after000010. Apply its up fi
 once with `psql -1 -v ON_ERROR_STOP=1 -f migrations/000011_add_transaction_refunds.up.sql`.
 Do not reset application tables or rerun old migrations. New installations use the
 Makefile sequence. Restart backend/Flutter after updating the source. No new
-environment variables, Firebase services or package dependencies are required.
+environment variables, external services, or package dependencies are required.
 
 Open **Daftar Order → Dibayar → Detail**. Original, refunded and net amounts are
 separate. Choose **Batalkan / Refund Seluruh Sisa** or **Refund Item**. Select item

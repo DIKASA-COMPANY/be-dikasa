@@ -1,0 +1,40 @@
+meta {
+  name: Create Avatar Upload Intent
+  type: http
+  seq: 26
+}
+
+post {
+  url: {{baseUrl}}/dikasa/v1/users/me/avatar-upload-intents
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "content_type": "image/png",
+    "size": 102400
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.object_name: isNotEmpty
+  res.body.data.upload_url: isNotEmpty
+  res.body.data.expires_in: eq 7200
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setEnvVar("avatarObjectName", res.body.data.object_name);
+    bru.setEnvVar("avatarUploadUrl", res.body.data.upload_url);
+  }
+}
+
+docs {
+  PUT the declared image bytes directly to avatarUploadUrl, then run Adopt My Supabase Avatar. The DIKASA API receives only avatarObjectName during completion.
+}

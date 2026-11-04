@@ -1,7 +1,7 @@
 package user
 
 import (
-	"bytes"
+	"be-dikasa/internal/shared/supabasestorage"
 	"context"
 	"errors"
 	"testing"
@@ -46,12 +46,20 @@ func (plainCredentialHasher) Compare(hash, value string) error {
 }
 
 type fakeAvatarStore struct {
-	stored  AvatarImage
-	deleted []string
-	err     error
+	stored   AvatarImage
+	intent   supabasestorage.SignedUpload
+	prepared int
+	adopted  int
+	deleted  []string
+	err      error
 }
 
-func (store *fakeAvatarStore) Save(context.Context, string, string, *AvatarUpload) (*AvatarImage, error) {
+func (store *fakeAvatarStore) Prepare(context.Context, string, string, string, int64) (supabasestorage.SignedUpload, error) {
+	store.prepared++
+	return store.intent, store.err
+}
+func (store *fakeAvatarStore) Adopt(context.Context, string, string, string) (*AvatarImage, error) {
+	store.adopted++
 	if store.err != nil {
 		return nil, store.err
 	}
@@ -83,9 +91,20 @@ func TestUpdateProfileCleansAvatarWhenDatabaseFails(t *testing.T) {
 	avatars := &fakeAvatarStore{stored: AvatarImage{URL: "https://new"}}
 	service := NewService(repository, WithCredentialHasher(plainCredentialHasher{}), WithAvatarStore(avatars))
 
-	_, err := service.UpdateProfile(context.Background(), "user-a", ProfileMutation{Fields: map[string]bool{}, Avatar: &AvatarUpload{Reader: bytes.NewReader([]byte("image")), Size: 5}})
+	_, err := service.UpdateProfile(context.Background(), "user-a", ProfileMutation{Fields: map[string]bool{}, AvatarObjectName: "avatar.png"})
 	if err == nil || len(avatars.deleted) != 1 || avatars.deleted[0] != "https://new" {
 		t.Fatalf("expected avatar cleanup, err=%v deleted=%v", err, avatars.deleted)
+	}
+}
+
+func TestPrepareAvatarUploadRequiresScopedAccount(t *testing.T) {
+	outletID := "outlet-a"
+	repository := &settingsRepository{account: &User{ID: "user-a", OutletID: &outletID, IsActive: true}}
+	avatars := &fakeAvatarStore{intent: supabasestorage.SignedUpload{ObjectName: "avatar.png", UploadURL: "https://storage/upload?token=x", ExpiresIn: 7200}}
+	service := NewService(repository, WithAvatarStore(avatars))
+	intent, err := service.PrepareAvatarUpload(context.Background(), "user-a", "image/png", 100)
+	if err != nil || intent.ObjectName != "avatar.png" || avatars.prepared != 1 {
+		t.Fatalf("unexpected avatar intent=%+v prepared=%d err=%v", intent, avatars.prepared, err)
 	}
 }
 
@@ -122,8 +141,19 @@ func TestUncertainProfileCommitDoesNotDeleteReferencedUpload(t *testing.T) {
 	repo := &settingsRepository{account: &User{ID: "a", OutletID: &out, FirstName: "Jane", PhoneNumber: "0812345678", AvatarURL: &downloadURL}, updateErr: errors.New("commit reply lost")}
 	store := &fakeAvatarStore{stored: AvatarImage{URL: downloadURL}}
 	svc := NewService(repo, WithAvatarStore(store))
-	_, err := svc.UpdateProfile(context.Background(), "a", ProfileMutation{Fields: map[string]bool{}, Avatar: &AvatarUpload{Reader: bytes.NewReader([]byte("image")), Size: 5}})
+	_, err := svc.UpdateProfile(context.Background(), "a", ProfileMutation{Fields: map[string]bool{}, AvatarObjectName: "avatar.png"})
 	if err == nil || len(store.deleted) != 0 {
 		t.Fatal("potentially committed avatar was deleted", store.deleted)
+	}
+}
+
+func TestUpdateProfileDoesNotDeleteSameAdoptedAvatarOnRetry(t *testing.T) {
+	outletID, downloadURL := "outlet", "https://same"
+	repo := &settingsRepository{account: &User{ID: "a", OutletID: &outletID, FirstName: "Jane", PhoneNumber: "0812345678", AvatarURL: &downloadURL}}
+	store := &fakeAvatarStore{stored: AvatarImage{URL: downloadURL}}
+	svc := NewService(repo, WithAvatarStore(store))
+	_, err := svc.UpdateProfile(context.Background(), "a", ProfileMutation{Fields: map[string]bool{}, AvatarObjectName: "same-object.png"})
+	if err != nil || len(store.deleted) != 0 {
+		t.Fatalf("idempotent avatar completion deleted live object: deleted=%v err=%v", store.deleted, err)
 	}
 }

@@ -1,61 +1,56 @@
 package auth
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
-	"net/http"
-	"net/url"
-	"strconv"
-	"time"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"be-dikasa/internal/shared/supabaseauth"
 	"be-dikasa/internal/user"
 )
 
 const dummyPasswordHash = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
 
-const defaultTokenExchangeURL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken"
-
 var (
-	// ErrInvalidCredentials menandakan identifier atau password tidak valid.
+	// ErrInvalidCredentials indicates that the submitted local credentials are invalid.
 	ErrInvalidCredentials = errors.New("invalid credentials")
-	// ErrUserDisabled menandakan user PostgreSQL dinonaktifkan.
+	// ErrUserDisabled indicates that the Dikasa account is inactive.
 	ErrUserDisabled = errors.New("user disabled")
-	// ErrProviderUnavailable menandakan Firebase gagal menerbitkan token.
+	// ErrProviderUnavailable indicates that Supabase Auth could not issue a session.
 	ErrProviderUnavailable = errors.New("provider unavailable")
 )
 
-// SignInProvider mendefinisikan use case login untuk handler Huma.
+// SignInProvider defines the login use case used by the HTTP handler.
 type SignInProvider interface {
 	SignIn(ctx context.Context, identifier, password string) (Session, error)
 }
 
-// TokenIssuer issues a provider session for a PostgreSQL user UUID.
-type TokenIssuer interface {
-	Issue(ctx context.Context, uid string) (Session, error)
+// SupabaseProvider is the Auth surface required for login and rolling user migration.
+type SupabaseProvider interface {
+	SignIn(ctx context.Context, email, password string) (supabaseauth.Session, error)
+	ImportUser(ctx context.Context, value supabaseauth.UserImport) error
+	UpdateUserCredentials(ctx context.Context, userID, email, passwordHash string) error
+	FindUserByEmail(ctx context.Context, email string) (string, error)
 }
 
-// Service validates PostgreSQL credentials before requesting a provider token.
+// Service validates the existing Dikasa credential before issuing a Supabase session.
 type Service struct {
-	users  user.Repository
-	issuer TokenIssuer
+	users    user.Repository
+	provider SupabaseProvider
 }
 
-// NewService membuat auth service dengan repository user dan penerbit token.
-func NewService(users user.Repository, issuer TokenIssuer) *Service {
-	return &Service{users: users, issuer: issuer}
+// NewService creates an authentication service backed by Supabase Auth.
+func NewService(users user.Repository, provider SupabaseProvider) *Service {
+	return &Service{users: users, provider: provider}
 }
 
-// SignIn memvalidasi identifier dan password hash PostgreSQL lalu menerbitkan token Firebase.
+// SignIn validates the local bcrypt credential and lazily imports it into Supabase Auth.
 func (service *Service) SignIn(ctx context.Context, identifier, password string) (Session, error) {
 	account, err := service.users.FindByIdentifier(ctx, identifier)
 	if err != nil {
 		if errors.Is(err, user.ErrNotFound) {
-			// Tetap jalankan bcrypt untuk mengurangi perbedaan waktu antara user ada dan tidak ada.
 			_ = bcrypt.CompareHashAndPassword([]byte(dummyPasswordHash), []byte(password))
 			return Session{}, ErrInvalidCredentials
 		}
@@ -64,102 +59,53 @@ func (service *Service) SignIn(ctx context.Context, identifier, password string)
 	if !account.IsActive {
 		return Session{}, ErrUserDisabled
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(account.PasswordHash), []byte(password)); err != nil {
+	if err = bcrypt.CompareHashAndPassword([]byte(account.PasswordHash), []byte(password)); err != nil {
+		return Session{}, ErrInvalidCredentials
+	}
+	if account.Email == nil || strings.TrimSpace(*account.Email) == "" {
 		return Session{}, ErrInvalidCredentials
 	}
 
-	session, err := service.issuer.Issue(ctx, account.ID)
-	if err != nil {
+	providerSession, err := service.provider.SignIn(ctx, *account.Email, password)
+	if errors.Is(err, supabaseauth.ErrInvalidCredentials) {
+		if migrationErr := service.synchronizeAccount(ctx, account); migrationErr != nil {
+			return Session{}, ErrProviderUnavailable
+		}
+		providerSession, err = service.provider.SignIn(ctx, *account.Email, password)
+	}
+	if err != nil || providerSession.AccessToken == "" || providerSession.UserID == "" {
 		return Session{}, ErrProviderUnavailable
 	}
-	return session, nil
-}
-
-// CustomTokenClient membuat Firebase custom token untuk UID lokal.
-type CustomTokenClient interface {
-	CustomToken(ctx context.Context, uid string) (string, error)
-}
-
-// FirebaseTokenIssuerOption mengubah konfigurasi FirebaseTokenIssuer.
-type FirebaseTokenIssuerOption func(*FirebaseTokenIssuer)
-
-// FirebaseTokenIssuer membuat custom token lalu menukarnya menjadi ID dan refresh token.
-type FirebaseTokenIssuer struct {
-	client      CustomTokenClient
-	webAPIKey   string
-	exchangeURL string
-	httpClient  *http.Client
-}
-
-// NewFirebaseTokenIssuer membuat penerbit token Firebase tanpa menyimpan data bisnis di Firebase.
-func NewFirebaseTokenIssuer(client CustomTokenClient, webAPIKey string, options ...FirebaseTokenIssuerOption) *FirebaseTokenIssuer {
-	issuer := &FirebaseTokenIssuer{
-		client: client, webAPIKey: webAPIKey, exchangeURL: defaultTokenExchangeURL,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
-	}
-	for _, option := range options {
-		option(issuer)
-	}
-	return issuer
-}
-
-// WithTokenExchangeURL mengganti endpoint pertukaran token untuk pengujian.
-func WithTokenExchangeURL(exchangeURL string) FirebaseTokenIssuerOption {
-	return func(issuer *FirebaseTokenIssuer) {
-		issuer.exchangeURL = exchangeURL
-	}
-}
-
-// Issue menerbitkan Firebase ID token dengan UID yang sama dengan UUID user PostgreSQL.
-func (issuer *FirebaseTokenIssuer) Issue(ctx context.Context, uid string) (Session, error) {
-	customToken, err := issuer.client.CustomToken(ctx, uid)
-	if err != nil {
+	if account.SupabaseUserID != nil && *account.SupabaseUserID != providerSession.UserID {
 		return Session{}, ErrProviderUnavailable
 	}
-
-	payload, err := json.Marshal(struct {
-		Token             string `json:"token"`
-		ReturnSecureToken bool   `json:"returnSecureToken"`
-	}{Token: customToken, ReturnSecureToken: true})
-	if err != nil {
-		return Session{}, ErrProviderUnavailable
-	}
-	endpoint, err := url.Parse(issuer.exchangeURL)
-	if err != nil {
-		return Session{}, ErrProviderUnavailable
-	}
-	query := endpoint.Query()
-	query.Set("key", issuer.webAPIKey)
-	endpoint.RawQuery = query.Encode()
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(payload))
-	if err != nil {
-		return Session{}, ErrProviderUnavailable
-	}
-	request.Header.Set("Content-Type", "application/json")
-	response, err := issuer.httpClient.Do(request)
-	if err != nil {
-		return Session{}, ErrProviderUnavailable
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return Session{}, ErrProviderUnavailable
-	}
-
-	var tokenResponse struct {
-		IDToken      string `json:"idToken"`
-		RefreshToken string `json:"refreshToken"`
-		ExpiresIn    string `json:"expiresIn"`
-	}
-	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&tokenResponse); err != nil {
-		return Session{}, ErrProviderUnavailable
-	}
-	expiresIn, err := strconv.Atoi(tokenResponse.ExpiresIn)
-	if err != nil || tokenResponse.IDToken == "" || tokenResponse.RefreshToken == "" {
-		return Session{}, ErrProviderUnavailable
+	if identities, ok := service.users.(interface {
+		BindSupabaseUserID(context.Context, string, string) error
+	}); ok {
+		if err = identities.BindSupabaseUserID(ctx, account.ID, providerSession.UserID); err != nil {
+			return Session{}, err
+		}
 	}
 	return Session{
-		IDToken: tokenResponse.IDToken, RefreshToken: tokenResponse.RefreshToken,
-		ExpiresIn: expiresIn, FirebaseUID: uid,
+		AccessToken: providerSession.AccessToken, RefreshToken: providerSession.RefreshToken,
+		ExpiresIn: providerSession.ExpiresIn, SupabaseUserID: providerSession.UserID,
 	}, nil
+}
+
+// synchronizeAccount preserves a stable UUID and bcrypt hash during rolling migration.
+func (service *Service) synchronizeAccount(ctx context.Context, account *user.User) error {
+	if account.SupabaseUserID != nil && *account.SupabaseUserID != "" {
+		return service.provider.UpdateUserCredentials(ctx, *account.SupabaseUserID, *account.Email, account.PasswordHash)
+	}
+	err := service.provider.ImportUser(ctx, supabaseauth.UserImport{
+		ID: account.ID, Email: *account.Email, PasswordHash: account.PasswordHash, EmailConfirmed: true,
+	})
+	if errors.Is(err, supabaseauth.ErrUserExists) {
+		existingID, findErr := service.provider.FindUserByEmail(ctx, *account.Email)
+		if findErr != nil {
+			return findErr
+		}
+		return service.provider.UpdateUserCredentials(ctx, existingID, *account.Email, account.PasswordHash)
+	}
+	return err
 }

@@ -96,6 +96,27 @@ func TestGORMRepositoryMapsRecordNotFound(t *testing.T) {
 	}
 }
 
+func TestGORMRepositoryFindsAndBindsSupabaseIdentity(t *testing.T) {
+	repository, mock := newRepositoryMock(t)
+	query := regexp.QuoteMeta(`SELECT * FROM "users" WHERE supabase_user_id = $1 ORDER BY "users"."id" LIMIT $2`)
+	mock.ExpectQuery(query).WithArgs("supabase-id", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "supabase_user_id", "username", "is_active"}).AddRow("user-id", "supabase-id", "owner", true))
+	account, err := repository.FindBySupabaseUserID(context.Background(), "supabase-id")
+	if err != nil || account.ID != "user-id" {
+		t.Fatalf("find Supabase identity: %+v, %v", account, err)
+	}
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "users" SET "supabase_user_id"=\$1,"updated_at"=\$2 WHERE id = \$3 AND \(supabase_user_id IS NULL OR supabase_user_id = \$4\)`).
+		WithArgs("supabase-id", sqlmock.AnyArg(), "user-id", "supabase-id").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	if err = repository.BindSupabaseUserID(context.Background(), "user-id", "supabase-id"); err != nil {
+		t.Fatalf("bind Supabase identity: %v", err)
+	}
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTranslatedDuplicateProfileError(t *testing.T) {
 	if !errors.Is(normalizeUserWriteError(gorm.ErrDuplicatedKey), ErrConflict) {
 		t.Fatal("translated unique constraint must map to conflict")

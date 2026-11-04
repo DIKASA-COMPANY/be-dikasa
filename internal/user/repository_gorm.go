@@ -104,6 +104,42 @@ func (repository *GORMRepository) FindByID(ctx context.Context, id string) (*Use
 	return &account, nil
 }
 
+// FindBySupabaseUserID finds the Dikasa account bound to a Supabase Auth subject.
+func (repository *GORMRepository) FindBySupabaseUserID(ctx context.Context, supabaseUserID string) (*User, error) {
+	var account User
+	err := repository.db.WithContext(ctx).Preload("Role").Preload("Outlet").Preload("Gender").First(&account, "supabase_user_id = ?", supabaseUserID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &account, nil
+}
+
+// BindSupabaseUserID atomically binds one Supabase subject to one Dikasa account.
+func (repository *GORMRepository) BindSupabaseUserID(ctx context.Context, userID, supabaseUserID string) error {
+	result := repository.db.WithContext(ctx).Model(&User{}).
+		Where("id = ? AND (supabase_user_id IS NULL OR supabase_user_id = ?)", userID, supabaseUserID).
+		Update("supabase_user_id", supabaseUserID)
+	if result.Error != nil {
+		return normalizeUserWriteError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrConflict
+	}
+	return nil
+}
+
+// ListUnboundSupabaseUsers returns active password accounts awaiting Auth migration.
+func (repository *GORMRepository) ListUnboundSupabaseUsers(ctx context.Context, limit int) ([]User, error) {
+	var accounts []User
+	err := repository.db.WithContext(ctx).
+		Where("is_active = TRUE AND supabase_user_id IS NULL AND email IS NOT NULL").
+		Order("id").Limit(limit).Find(&accounts).Error
+	return accounts, err
+}
+
 // FindByIDWithRole mencari user sekaligus memuat role untuk keputusan otorisasi.
 func (repository *GORMRepository) FindByIDWithRole(ctx context.Context, id string) (*User, error) {
 	var account User

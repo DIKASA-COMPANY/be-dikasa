@@ -1,7 +1,7 @@
 meta {
   name: Create cash movement
   type: http
-  seq: 71
+  seq: 72
 }
 post {
   url: {{baseUrl}}/dikasa/v1/cash-sessions/{{cashSessionId}}/movements
@@ -17,13 +17,13 @@ body:multipart-form {
   name: Bank deposit
   amount: 10000
   reason: Deposit from till
-  ~proof: @file(./evidence.png)
+  ~proof_object_name: {{cashProofObjectName}}
 }
 assert {
   res.status: eq 201
 }
 docs {
-  Use disposable test accounts for writes. Keep the exact request UUID/body/photo on a lost reply; never retarget another session or retry with a fresh UUID. Proof is private and optional.
+  Use disposable test accounts for writes. For optional proof, request a signed upload using the same request_id, PUT bytes directly to cashProofUploadUrl, then send cashProofObjectName. Keep the exact request UUID/body/object name on a lost reply.
 }
 
 tests {

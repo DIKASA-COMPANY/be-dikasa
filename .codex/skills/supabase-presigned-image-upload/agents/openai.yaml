@@ -1,0 +1,4 @@
+interface:
+  display_name: "Supabase Presigned Image Upload"
+  short_description: "Enforce direct image uploads through Supabase signed upload URLs"
+  default_prompt: "Design or review this DIKASA image upload flow using a Supabase signed upload URL."

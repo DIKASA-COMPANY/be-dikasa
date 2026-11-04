@@ -1,11 +1,11 @@
 package auth
 
-// Session holds a provider-issued access token and an optional Firebase refresh token.
+// Session holds a Supabase Auth access and refresh session.
 type Session struct {
-	IDToken      string
-	RefreshToken string
-	ExpiresIn    int
-	FirebaseUID  string
+	AccessToken    string
+	RefreshToken   string
+	ExpiresIn      int
+	SupabaseUserID string
 }
 
 // LoginRequest adalah payload login username, nomor HP, atau email.
@@ -19,18 +19,18 @@ type LoginInput struct {
 	Body LoginRequest
 }
 
-// LoginResponse is the Firebase session envelope returned after credential validation.
+// LoginResponse is the Supabase session envelope returned after credential validation.
 type LoginResponse struct {
 	Data LoginResponseData `json:"data"`
 }
 
-// LoginResponseData contains the Bearer session issued by Firebase Authentication.
+// LoginResponseData contains the Bearer session issued by Supabase Auth.
 type LoginResponseData struct {
-	AccessToken  string `json:"access_token" doc:"Firebase ID token untuk Authorization Bearer"`
-	RefreshToken string `json:"refresh_token" doc:"Firebase refresh token"`
-	TokenType    string `json:"token_type" enum:"Bearer" example:"Bearer"`
-	ExpiresIn    int    `json:"expires_in" example:"3600"`
-	FirebaseUID  string `json:"firebase_uid" doc:"UUID user PostgreSQL yang dipakai sebagai Firebase UID"`
+	AccessToken    string `json:"access_token" doc:"Supabase access token untuk Authorization Bearer"`
+	RefreshToken   string `json:"refresh_token" doc:"Supabase refresh token"`
+	TokenType      string `json:"token_type" enum:"Bearer" example:"Bearer"`
+	ExpiresIn      int    `json:"expires_in" example:"3600"`
+	SupabaseUserID string `json:"supabase_user_id" doc:"UUID identitas Supabase Auth yang terikat ke user PostgreSQL"`
 }
 
 // LoginOutput membungkus respons sukses endpoint login untuk Huma.

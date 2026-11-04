@@ -45,6 +45,7 @@ func (Outlet) TableName() string { return "outlets" }
 // User adalah akun lokal yang menjadi sumber kredensial login Dikasa.
 type User struct {
 	ID              string     `gorm:"type:uuid;primaryKey"`
+	SupabaseUserID  *string    `gorm:"column:supabase_user_id;type:uuid;uniqueIndex"`
 	RoleID          string     `gorm:"type:uuid;not null;index"`
 	GenderID        *string    `gorm:"type:uuid;index"`
 	OutletID        *string    `gorm:"type:uuid;index"`

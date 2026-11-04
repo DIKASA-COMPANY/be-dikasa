@@ -2,18 +2,18 @@ DO $$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM products WHERE image_url IS NOT NULL
-        AND image_url NOT LIKE 'https://firebasestorage.googleapis.com/v0/b/%/o/%?alt=media&token=%'
+        AND image_url NOT LIKE 'https://%.supabase.co/storage/v1/object/public/%'
     ) THEN
-        RAISE EXCEPTION 'Migrate existing product images to Firebase download URLs before migration 000016';
+        RAISE EXCEPTION 'Migrate existing product images to Supabase Storage public URLs before migration 000016';
     END IF;
     IF EXISTS (
         SELECT 1 FROM users WHERE avatar_url IS NOT NULL
-        AND avatar_url NOT LIKE 'https://firebasestorage.googleapis.com/v0/b/%/o/%?alt=media&token=%'
+        AND avatar_url NOT LIKE 'https://%.supabase.co/storage/v1/object/public/%'
     ) THEN
-        RAISE EXCEPTION 'Migrate existing avatars to Firebase download URLs before migration 000016';
+        RAISE EXCEPTION 'Migrate existing avatars to Supabase Storage public URLs before migration 000016';
     END IF;
     IF EXISTS (SELECT 1 FROM cash_movements WHERE proof_object_key IS NOT NULL) THEN
-        RAISE EXCEPTION 'Migrate existing cash proof objects to Firebase download URLs before migration 000016';
+        RAISE EXCEPTION 'Migrate existing cash proof objects to Supabase Storage public URLs before migration 000016';
     END IF;
 END $$;
 

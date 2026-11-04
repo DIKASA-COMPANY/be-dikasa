@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	firebaseauth "firebase.google.com/go/v4/auth"
-
 	"be-dikasa/internal/auth"
 	"be-dikasa/internal/cash"
 	"be-dikasa/internal/catalog"
@@ -27,6 +25,7 @@ import (
 	"be-dikasa/internal/reservation"
 	"be-dikasa/internal/sales"
 	"be-dikasa/internal/savedorder"
+	"be-dikasa/internal/shared/supabasestorage"
 	sharedvalidator "be-dikasa/internal/shared/validator"
 	"be-dikasa/internal/user"
 )
@@ -34,7 +33,7 @@ import (
 type routerSignInProvider struct{}
 
 func (routerSignInProvider) SignIn(context.Context, string, string) (auth.Session, error) {
-	return auth.Session{IDToken: "id-token", RefreshToken: "refresh-token", ExpiresIn: 3600, FirebaseUID: "user-id"}, nil
+	return auth.Session{AccessToken: "access-token", RefreshToken: "refresh-token", ExpiresIn: 3600, SupabaseUserID: "user-id"}, nil
 }
 
 type routerRegistrationProvider struct{}
@@ -122,6 +121,9 @@ func (routerCatalogProvider) ListProducts(context.Context, string, catalog.Produ
 func (routerCatalogProvider) GetProduct(context.Context, string, string, bool) (*catalog.Product, error) {
 	return &catalog.Product{}, nil
 }
+func (routerCatalogProvider) PrepareProductImageUpload(context.Context, string, string, int64) (supabasestorage.SignedUpload, error) {
+	return supabasestorage.SignedUpload{}, nil
+}
 func (routerCatalogProvider) CreateProduct(context.Context, string, catalog.ProductMutation) (*catalog.Product, error) {
 	return &catalog.Product{}, nil
 }
@@ -206,7 +208,7 @@ func (routerSalesProvider) ListCustomers(context.Context, string, sales.Customer
 }
 
 func newTestRouter() http.Handler {
-	return newTestRouterWithVerifier(stubTokenVerifier{token: &firebaseauth.Token{UID: "user-id"}})
+	return newTestRouterWithVerifier(stubTokenVerifier{token: &VerifiedToken{UserID: "user-id"}})
 }
 
 func newTestRouterWithVerifier(verifier TokenVerifier) http.Handler {
@@ -363,7 +365,7 @@ func TestRouterPublishesLoginAndProtectsFeatureRoutes(t *testing.T) {
 	login.Header.Set("Content-Type", "application/json")
 	loginResponse := httptest.NewRecorder()
 	router.ServeHTTP(loginResponse, login)
-	if loginResponse.Code != http.StatusOK || !strings.Contains(loginResponse.Body.String(), `"access_token":"id-token"`) {
+	if loginResponse.Code != http.StatusOK || !strings.Contains(loginResponse.Body.String(), `"access_token":"access-token"`) {
 		t.Fatalf("unexpected login response: %d %s", loginResponse.Code, loginResponse.Body.String())
 	}
 
@@ -464,6 +466,7 @@ func TestPublicPathAllowlistIsExact(t *testing.T) {
 		apiPrefix + "/register/otp/resend",
 		apiPrefix + "/docs",
 		apiPrefix + "/docs/",
+		apiPrefix + "/openapi",
 		apiPrefix + "/openapi.json",
 		apiPrefix + "/openapi.yaml",
 		apiPrefix + "/schemas/Example.json",
@@ -479,9 +482,32 @@ func TestPublicPathAllowlistIsExact(t *testing.T) {
 		apiPrefix + "/openapi-private",
 		apiPrefix + "/schemas-private/Example.json",
 		apiPrefix + "/health",
+		apiPrefix + "/schemas/",
+		apiPrefix + "/schemas/Example.yaml",
+		apiPrefix + "/schemas/private/Example.json",
 	} {
 		if isPublicPath(path) {
 			t.Errorf("lookalike path must remain protected: %s", path)
+		}
+	}
+}
+
+func TestPublicPathAllowlistRejectsLookalikes(t *testing.T) {
+	for _, path := range []string{
+		"/dikasa/v1/login-admin", "/dikasa/v1/register/otp/confirm/extra",
+		"/dikasa/v1/openapi-secret", "/dikasa/v1/schemas/private/secret.json",
+	} {
+		if isPublicPath(path) {
+			t.Fatalf("lookalike path was public: %s", path)
+		}
+	}
+	for _, path := range []string{
+		"/dikasa/v1/login", "/dikasa/v1/register", "/dikasa/v1/register/otp/confirm",
+		"/dikasa/v1/register/otp/resend", "/dikasa/v1/docs", "/dikasa/v1/openapi.yaml",
+		"/dikasa/v1/schemas/LoginRequest.json",
+	} {
+		if !isPublicPath(path) {
+			t.Fatalf("expected public path: %s", path)
 		}
 	}
 }
@@ -608,7 +634,33 @@ func TestOpenAPIDoesNotExposeLocalImageFileEndpoints(t *testing.T) {
 	}
 	for _, path := range []string{"/product-images/{filename}", "/avatar-images/{filename}"} {
 		if strings.Contains(response.Body.String(), path) {
-			t.Fatalf("Firebase-only API must return download URLs, not expose local file endpoint %s", path)
+			t.Fatalf("Supabase-only API must return public URLs, not expose local file endpoint %s", path)
+		}
+	}
+	document := response.Body.String()
+	if strings.Contains(document, "format: binary") {
+		t.Fatal("business API still exposes binary image upload")
+	}
+	for _, value := range []string{"/products/image-upload-intents:", "/users/me/avatar-upload-intents:", "/cash-sessions/{session_id}/movement-proof-upload-intents:", "image_object_name:", "avatar_object_name:", "proof_object_name:"} {
+		if !strings.Contains(document, value) {
+			t.Fatalf("presigned upload contract missing %s", value)
+		}
+	}
+}
+
+func TestImageUploadIntentRoutesRequireBearerAuthentication(t *testing.T) {
+	router := newTestRouter()
+	for _, path := range []string{
+		"/dikasa/v1/products/image-upload-intents",
+		"/dikasa/v1/users/me/avatar-upload-intents",
+		"/dikasa/v1/cash-sessions/11111111-1111-4111-8111-111111111111/movement-proof-upload-intents",
+	} {
+		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"content_type":"image/png","size":100}`))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("POST %s without token: got %d", path, response.Code)
 		}
 	}
 }

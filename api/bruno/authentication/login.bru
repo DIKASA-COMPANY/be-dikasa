@@ -27,7 +27,7 @@ assert {
 }
 
 docs {
-  PostgreSQL credentials are validated before Firebase issues the ID and refresh tokens.
+  PostgreSQL credentials are validated before Supabase Auth issues the access and refresh tokens. Existing bcrypt accounts are imported lazily on first login.
   Local JWT authentication is not supported.
 }
 

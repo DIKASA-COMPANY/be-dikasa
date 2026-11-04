@@ -13,11 +13,12 @@ import (
 // Lookup mendapatkan nilai environment berdasarkan nama variable.
 type Lookup func(key string) string
 
-// Firebase memuat konfigurasi Firebase Authentication.
-type Firebase struct {
-	ProjectID     string
-	WebAPIKey     string
-	StorageBucket string
+// Supabase memuat konfigurasi Supabase Auth dan Storage.
+type Supabase struct {
+	URL            string
+	PublishableKey string
+	SecretKey      string
+	StorageBucket  string
 }
 
 // Mail memuat konfigurasi SMTP untuk pengiriman OTP.
@@ -34,7 +35,7 @@ type Config struct {
 	CORSOrigins []string
 	Port        string
 	DatabaseURL string
-	Firebase    Firebase
+	Supabase    Supabase
 	OTPSecret   string
 	Mail        Mail
 }
@@ -44,10 +45,11 @@ func Load(lookup Lookup) (Config, error) {
 	configuration := Config{
 		Port:        strings.TrimSpace(lookup("PORT")),
 		DatabaseURL: strings.TrimSpace(lookup("DATABASE_URL")),
-		Firebase: Firebase{
-			ProjectID:     strings.TrimSpace(lookup("FIREBASE_PROJECT_ID")),
-			WebAPIKey:     strings.TrimSpace(lookup("FIREBASE_WEB_API_KEY")),
-			StorageBucket: strings.TrimSpace(lookup("FIREBASE_STORAGE_BUCKET")),
+		Supabase: Supabase{
+			URL:            strings.TrimSpace(lookup("SUPABASE_URL")),
+			PublishableKey: strings.TrimSpace(lookup("SUPABASE_PUBLISHABLE_KEY")),
+			SecretKey:      strings.TrimSpace(lookup("SUPABASE_SECRET_KEY")),
+			StorageBucket:  strings.TrimSpace(lookup("SUPABASE_STORAGE_BUCKET")),
 		},
 		OTPSecret: strings.TrimSpace(lookup("OTP_SECRET")),
 		Mail: Mail{
@@ -55,11 +57,11 @@ func Load(lookup Lookup) (Config, error) {
 			Password: lookup("SMTP_PASSWORD"), From: strings.TrimSpace(lookup("SMTP_FROM")),
 		},
 	}
-	if mode := strings.ToLower(strings.TrimSpace(lookup("AUTH_MODE"))); mode != "" && mode != "firebase" {
-		return Config{}, fmt.Errorf("AUTH_MODE=firebase is required; local authentication is not supported")
+	if mode := strings.ToLower(strings.TrimSpace(lookup("AUTH_MODE"))); mode != "" && mode != "supabase" {
+		return Config{}, fmt.Errorf("AUTH_MODE=supabase is required; local authentication is not supported")
 	}
-	if mode := strings.ToLower(strings.TrimSpace(lookup("IMAGE_STORAGE_MODE"))); mode != "" && mode != "firebase" {
-		return Config{}, fmt.Errorf("IMAGE_STORAGE_MODE=firebase is required; local or disabled image storage is not supported")
+	if mode := strings.ToLower(strings.TrimSpace(lookup("IMAGE_STORAGE_MODE"))); mode != "" && mode != "supabase" {
+		return Config{}, fmt.Errorf("IMAGE_STORAGE_MODE=supabase is required; local or disabled image storage is not supported")
 	}
 	if mode := strings.ToLower(strings.TrimSpace(lookup("MAIL_MODE"))); mode != "" && mode != "smtp" {
 		return Config{}, fmt.Errorf("MAIL_MODE=smtp is required")
@@ -78,18 +80,21 @@ func Load(lookup Lookup) (Config, error) {
 	if configuration.Port == "" {
 		configuration.Port = "8080"
 	}
-	missing := make([]string, 0, 7)
+	missing := make([]string, 0, 8)
 	if configuration.DatabaseURL == "" {
 		missing = append(missing, "DATABASE_URL")
 	}
-	if configuration.Firebase.ProjectID == "" {
-		missing = append(missing, "FIREBASE_PROJECT_ID")
+	if configuration.Supabase.URL == "" {
+		missing = append(missing, "SUPABASE_URL")
 	}
-	if configuration.Firebase.WebAPIKey == "" {
-		missing = append(missing, "FIREBASE_WEB_API_KEY")
+	if configuration.Supabase.PublishableKey == "" {
+		missing = append(missing, "SUPABASE_PUBLISHABLE_KEY")
 	}
-	if configuration.Firebase.StorageBucket == "" {
-		missing = append(missing, "FIREBASE_STORAGE_BUCKET")
+	if configuration.Supabase.SecretKey == "" {
+		missing = append(missing, "SUPABASE_SECRET_KEY")
+	}
+	if configuration.Supabase.StorageBucket == "" {
+		missing = append(missing, "SUPABASE_STORAGE_BUCKET")
 	}
 	if len(configuration.OTPSecret) < 32 {
 		missing = append(missing, "OTP_SECRET (minimal 32 karakter)")
