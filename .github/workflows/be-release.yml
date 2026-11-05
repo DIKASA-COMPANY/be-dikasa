@@ -70,12 +70,12 @@ jobs:
           if-no-files-found: error
       - name: Summarize release
         run: |
-          printf 'Release run: `%s`\n\n' "$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Release run: %s\n\n' "$GITHUB_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
           cat release.json >> "$GITHUB_STEP_SUMMARY"
 
   dev:
     needs: image
-    if: vars.KOYEB_DEPLOY_ENABLED == 'true'
+    if: vars.RENDER_DEPLOY_ENABLED == 'true'
     uses: ./.github/workflows/reusable-deploy.yml
     permissions:
       contents: read
