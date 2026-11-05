@@ -3,7 +3,11 @@ name: Backend CI
 on:
   pull_request:
     branches: [main]
+  workflow_dispatch:
   workflow_call:
+    secrets:
+      SONAR_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -25,7 +29,7 @@ jobs:
       - name: Check Go formatting
         shell: bash
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
         run: |
           # Enforce formatting on changed files; legacy untouched files predate this CI.
           [[ "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]]
@@ -99,9 +103,64 @@ jobs:
       # Initialize pgcrypto once before packages run isolated integration schemas in parallel.
       - run: go test -race -count=1 ./...
 
+  sonar:
+    name: SonarQube Cloud quality gate
+    needs: unit
+    # Repository PRs target main (supported by the Free plan). Forks never receive secrets.
+    if: >-
+      vars.SONAR_ENABLED == 'true' &&
+      github.actor != 'dependabot[bot]' &&
+      ((github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' &&
+        github.event.pull_request.head.repo.full_name == github.repository) ||
+       (github.event_name != 'pull_request' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Validate SonarQube configuration
+        env:
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        shell: bash
+        run: |
+          for key in SONAR_ORGANIZATION SONAR_PROJECT_KEY; do
+            value="${!key}"
+            if [[ ! "$value" =~ ^[a-zA-Z0-9_.:-]+$ ]]; then
+              printf 'Configure repository variable %s before enabling SonarQube.\n' "$key" >&2
+              exit 1
+            fi
+          done
+          if [[ -z "$SONAR_TOKEN" ]]; then
+            echo 'Configure the SONAR_TOKEN repository secret before enabling SonarQube.' >&2
+            exit 1
+          fi
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: coverage-${{ github.run_id }}
+      - name: Prepare native Go coverage for SonarQube
+        run: python3 scripts/cicd/prepare_sonar.py
+      - name: Analyze Go code and wait for Quality Gate
+        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >-
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=300
+
   build:
     name: Build validation
-    needs: integration
+    needs: [integration, sonar]
+    if: >-
+      always() && !cancelled() && needs.integration.result == 'success' &&
+      (needs.sonar.result == 'success' || needs.sonar.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

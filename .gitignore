@@ -3,3 +3,5 @@
 gha-creds-*.json
 __pycache__/
 coverage.out
+coverage-sonar.out
+.scannerwork/

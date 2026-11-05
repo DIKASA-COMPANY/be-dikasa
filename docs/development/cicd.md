@@ -1,5 +1,9 @@
 # CI/CD backend: GitHub Actions, GHCR, dan Render
 
+SonarQube Cloud Free dapat ditambahkan ke jalur test/build dengan
+`SONAR_ENABLED=true` setelah project dan token tersedia. Lihat
+[setup, baseline main, coverage, dan Quality Gate](sonarqube.md).
+
 ```text
 PR → format / vet / OpenAPI → unit test + race → PostgreSQL integration → build validation
 Push main → CI → build Docker sekali → push GHCR → scan digest → release.json

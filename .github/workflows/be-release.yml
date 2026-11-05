@@ -14,6 +14,8 @@ concurrency:
 jobs:
   ci:
     uses: ./.github/workflows/be-ci.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   image:
     name: Build and scan release image

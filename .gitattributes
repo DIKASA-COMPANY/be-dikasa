@@ -5,3 +5,4 @@ Dockerfile text eol=lf
 deploy/** text eol=lf
 scripts/cicd/** text eol=lf
 migrations/*.sql text eol=lf
+sonar-project.properties text eol=lf
