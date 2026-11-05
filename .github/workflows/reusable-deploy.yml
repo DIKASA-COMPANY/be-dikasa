@@ -26,7 +26,7 @@ jobs:
     steps:
       - name: Require deployment activation
         env:
-          DEPLOY_ENABLED: ${{ vars.KOYEB_DEPLOY_ENABLED }}
+          DEPLOY_ENABLED: ${{ vars.RENDER_DEPLOY_ENABLED }}
         run: test "$DEPLOY_ENABLED" = true
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -71,17 +71,17 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - name: Migrate, deploy to Koyeb and verify
+      - name: Migrate, deploy to Render and verify
         id: cloud
         env:
           RELEASE_IMAGE: ${{ steps.gate.outputs.image }}
-          KOYEB_SERVICE_ID: ${{ vars.KOYEB_SERVICE_ID }}
-          SMOKE_URL: ${{ vars.KOYEB_SERVICE_URL }}
-          KOYEB_API_TOKEN: ${{ secrets.KOYEB_API_TOKEN }}
+          RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
+          SMOKE_URL: ${{ vars.RENDER_SERVICE_URL }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
           SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME }}
           SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
-        run: python3 scripts/cicd/koyeb.py
+        run: python3 scripts/cicd/render.py
       - name: Record successful promotion
         env:
           SERVICE_URL: ${{ steps.cloud.outputs.service_url }}
@@ -91,5 +91,5 @@ jobs:
           RELEASE_IMAGE: ${{ steps.gate.outputs.image }}
           SERVICE_URL: ${{ steps.cloud.outputs.service_url }}
         run: |
-          printf 'Environment: `%s`\n\nImage: `%s`\n\nURL: %s\n' \
+          printf 'Environment: %s\n\nImage: %s\n\nURL: %s\n' \
             "$TARGET_ENV" "$RELEASE_IMAGE" "$SERVICE_URL" >> "$GITHUB_STEP_SUMMARY"

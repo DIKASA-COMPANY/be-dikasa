@@ -1,4 +1,8 @@
-# CI/CD backend: GitHub Actions, GHCR, dan Koyeb
+# CI/CD backend: GitHub Actions, GHCR, dan Render
+
+SonarQube Cloud Free dapat ditambahkan ke jalur test/build dengan
+`SONAR_ENABLED=true` setelah project dan token tersedia. Lihat
+[setup, baseline main, coverage, dan Quality Gate](sonarqube.md).
 
 ```text
 PR → format / vet / OpenAPI → unit test + race → PostgreSQL integration → build validation
@@ -6,172 +10,206 @@ Push main → CI → build Docker sekali → push GHCR → scan digest → relea
 Deploy aktif → DEV otomatis → SIT → UAT → STG → PRD (digest yang sama)
 ```
 
-Tidak memakai Firebase App Distribution atau Google Cloud. PostgreSQL tetap
-menyimpan data bisnis; Supabase menyediakan Auth dan Storage. Image release
+Target hosting adalah **Render Web Service dari Existing Image**. PostgreSQL
+menyimpan data bisnis; Supabase tetap menyediakan Auth dan Storage. Image release
 adalah `ghcr.io/dikasa-company/be-dikasa@sha256:...`, arsitektur `linux/amd64`,
-berjalan sebagai user non-root pada port 8080. Jangan memakai Git autodeploy atau
-build ulang di Koyeb: sumber service harus **pre-built Docker image**.
+berjalan sebagai user non-root. Runtime membaca port dari `PORT`.
 
-## CI dapat berjalan sebelum Koyeb siap
+## Mulai dari DEV
 
-Biarkan repository variable `KOYEB_DEPLOY_ENABLED` kosong atau `false`. PR tetap
-menjalankan seluruh CI. Push main tetap membangun, mengunggah, memindai, dan
-mencatat image di GHCR dengan `GITHUB_TOKEN`; job DEV dilewati. Tidak dibutuhkan
-token Koyeb untuk CI/publish image. Organisasi harus mengizinkan GitHub Actions
-membuat package GHCR. HIGH/CRITICAL yang memiliki perbaikan atau kegagalan scanner
-memblokir release manifest dan deployment.
+Tidak perlu menyiapkan kelima environment sekaligus. Mulai dengan satu service
+DEV. Promosi ke SIT/UAT/STG/PRD baru dilakukan setelah environment tujuan siap.
+Paket Free dapat dipakai untuk mencoba DEV; service tidur setelah 15 menit tanpa
+traffic dan bangun kembali sekitar satu menit. Kuota 750 jam per workspace per
+bulan dibagi antarlayanan. Paket ini tidak disarankan Render untuk produksi.
+Free Render Postgres kedaluwarsa setelah 30 hari; pilih database yang sesuai
+kebutuhan dan backup. Lihat [batas paket Free](https://render.com/docs/free).
 
-Set `KOYEB_DEPLOY_ENABLED=true` hanya setelah konfigurasi DEV dan seluruh aturan
-approval siap. Pemicu manual promosi menolak deployment ketika flag belum aktif.
-Setelah aktivasi, buat release baru dari main agar digest tersebut memperoleh
-catatan DEV sukses sebelum dipromosikan. Tombol manual tidak dapat melompati DEV.
+### 1. Biarkan deploy nonaktif sampai konfigurasi selesai
+
+Biarkan repository variable `RENDER_DEPLOY_ENABLED` kosong atau `false`. PR
+menjalankan CI; push main tetap build, upload, scan, dan mencatat image GHCR
+menggunakan `GITHUB_TOKEN`. Job DEV dilewati dan tidak membutuhkan akun atau API
+key Render. Organisasi harus mengizinkan Actions membuat package GHCR.
+HIGH/CRITICAL yang memiliki perbaikan atau kegagalan scanner memblokir manifest.
+
+Setelah merge, ambil digest dari summary **Backend release** untuk membuat
+service Render awal. Jangan memakai Git-backed service atau build ulang di
+Render, karena pipeline mempromosikan image yang sudah diuji.
+
+### 2. Buat service Render
+
+Di [dashboard Render](https://dashboard.render.com), pilih **New → Web Service →
+Existing Image**, lalu masukkan image GHCR dengan digest yang telah ditinjau.
+Beri nama misalnya `dikasa-api-dev`, pilih region dekat database, dan pilih ukuran
+instance/plan sendiri. Workflow tidak membuat resource atau mengubah paket.
+
+Jika package GHCR private, tambahkan registry credential pada Render: registry
+GitHub, username GitHub, dan token dengan `read:packages` yang dapat membaca
+package organisasi, termasuk otorisasi SSO jika diwajibkan. Buat token dari
+GitHub Settings → Developer settings → Personal access tokens → Tokens (classic).
+Simpan token langsung di Render; jangan memakai `GITHUB_TOKEN` job sebagai
+credential pull jangka panjang karena token job akan kedaluwarsa. Pipeline tidak
+mengubah visibility package menjadi public.
+
+Konfigurasi runtime berikut di tab **Environment** service Render. Nilai secret
+dimasukkan langsung ke Render; jangan dimasukkan ke Git atau chat.
+
+| Runtime variable | Nilai yang dibutuhkan |
+| --- | --- |
+| `PORT` | `8080` (atau port yang disediakan Render) |
+| `DATABASE_URL` | DSN PostgreSQL tujuan, user aplikasi, TLS; bukan localhost runner |
+| `SUPABASE_URL` | URL project Supabase tujuan |
+| `SUPABASE_PUBLISHABLE_KEY` | Publishable key tujuan |
+| `SUPABASE_SECRET_KEY` | Server-only secret key tujuan |
+| `SUPABASE_STORAGE_BUCKET` | Public bucket gambar tujuan |
+| `OTP_SECRET` | Secret acak minimal 32 karakter |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Akun SMTP tujuan |
+| `CORS_ALLOWED_ORIGINS` | Daftar origin frontend yang diizinkan |
+
+Atur **Health Check Path** ke `/dikasa/v1/openapi.json`. Endpoint
+`/dikasa/v1/health` tetap memerlukan Supabase Bearer token sehingga tidak dapat
+dipakai sebagai probe HTTP anonim. Kosongkan **Docker Command** dan
+**Pre-Deploy Command**: image menjalankan `/app/api` dan CI menangani migrasi.
+Pre-deploy command Render hanya tersedia pada tipe/paket layanan tertentu;
+pipeline tidak bergantung pada fitur tersebut sehingga jalur DEV Free didukung.
+
+Pastikan initial deploy berstatus **Live**. API memerlukan PostgreSQL yang dapat
+dihubungi dan bucket Supabase yang valid saat startup. Sebelum membuat akun smoke,
+siapkan skema sesuai langkah migrasi di bawah. Jangan mengubah service/deployment
+secara manual ketika pipeline berjalan.
+
+### 3. Ambil Service ID, URL, dan API key
+
+- **Service ID** berbentuk `srv-...`, dapat dilihat pada URL halaman service Render.
+- **Service URL** adalah HTTPS `https://nama-service.onrender.com` yang ditampilkan
+  di halaman service, atau custom domain HTTPS milik service tersebut.
+- **API key** dibuat dari Render **Account Settings → API Keys → Create API Key**.
+  Gunakan identitas dengan akses yang diperlukan untuk service tujuan. Scoped API
+  keys masih early access; pisahkan akses PRD bila pembatasan yang dibutuhkan
+  belum tersedia. Lihat [pengaturan API key](https://render.com/docs/api).
+
+### 4. Simpan konfigurasi GitHub
+
+Buat GitHub Environment `dev` melalui repo **Settings → Environments**. Tambahkan:
+
+| Jenis | Nama | Nilai |
+| --- | --- | --- |
+| Environment variable | `RENDER_SERVICE_ID` | ID `srv-...` service DEV |
+| Environment variable | `RENDER_SERVICE_URL` | URL HTTPS service DEV tanpa path/query/fragment |
+| Environment secret | `RENDER_API_KEY` | API key Render yang dapat membaca service/deploy dan memicu/membatalkan deploy |
+| Environment secret | `MIGRATION_DATABASE_URL` | DSN PostgreSQL DEV, user migrator/DDL, TLS |
+| Environment secret | `SMOKE_USERNAME` | Identifier akun pengujian DIKASA yang aktif |
+| Environment secret | `SMOKE_PASSWORD` | Password akun pengujian DIKASA tersebut |
+
+Akun smoke adalah akun aplikasi DIKASA di PostgreSQL/Supabase, **bukan** akun login
+Render. Gunakan akun khusus dengan hak minimum, bukan identitas bisnis nyata.
+User PostgreSQL API dan migrator sebaiknya berbeda. Runner harus dapat mengakses
+alamat database pada `MIGRATION_DATABASE_URL`.
+
+Untuk aktivasi, buat **repository variable** `RENDER_DEPLOY_ENABLED=true` melalui
+Settings → Secrets and variables → Actions → Variables. Buat release baru dari
+main agar memperoleh bukti DEV sukses. Pemicu manual promosi menolak deployment
+ketika flag belum aktif. Flag Koyeb lama tidak digunakan lagi.
+
+### 5. Aturan promosi
+
+Sebelum membuat SIT/UAT/STG/PRD, siapkan service, database, Supabase project/bucket,
+SMTP, akun smoke, dan GitHub Environment masing-masing dengan konfigurasi yang
+sama nama variabelnya tetapi nilai berbeda. Batasi deployment ke branch `main`.
+Lindungi main dengan PR, review, dan keempat required checks Backend CI.
+
+Pasang reviewer bisnis/QA pada UAT, operasional pada STG, dan release owner pada
+PRD; cegah self-review jika tersedia. Dukungan required reviewers bergantung
+paket/visibilitas repo. Jika tidak tersedia, sediakan approval eksternal sebelum
+mengaktifkan produksi. Tombol manual sendiri tidak memberi persetujuan terpisah.
 
 ## File pipeline
 
 | File | Fungsi |
 | --- | --- |
-| `.github/workflows/be-ci.yml` | PR/reusable CI; tidak mengakses secret deployment |
-| `.github/workflows/be-release.yml` | Push main, CI, image GHCR, scan, manifest, DEV opsional |
+| `.github/workflows/be-ci.yml` | PR/reusable CI tanpa secret deployment |
+| `.github/workflows/be-release.yml` | Push main, CI, GHCR, scan, manifest, DEV opsional |
 | `.github/workflows/be-promote.yml` | Promosi/rollback manual dari main |
-| `.github/workflows/reusable-deploy.yml` | Gate, approval environment, Koyeb API, catat sukses |
-| `scripts/cicd/koyeb.py` | Migrasi dari image, update service, tunggu deployment, smoke, recovery |
-| `scripts/cicd/release.py` | Verifikasi sumber release, digest, dan bukti environment sebelumnya |
-| `deploy/migrate.sh` | Migrasi sekali saja, checksum, transaksi, advisory lock |
+| `.github/workflows/reusable-deploy.yml` | Gate, environment approval, Render, catat sukses |
+| `scripts/cicd/render.py` | Migrasi dari image, Render deploy, polling, smoke, recovery |
+| `scripts/cicd/release.py` | Verifikasi sumber release, digest dan bukti environment sebelumnya |
+| `deploy/migrate.sh` | Migrasi sekali saja, checksum, transaksi dan advisory lock |
 
-Pemeriksaan gofmt hanya berlaku pada file Go yang berubah terhadap base PR/commit
-sebelumnya; file lama tidak diformat massal. Integration memakai PostgreSQL 18
-sementara di runner. Runtime, endpoint, OpenAPI, dan Bruno tidak diubah oleh CI/CD.
+Pemeriksaan gofmt berlaku pada file Go yang berubah terhadap base PR/commit
+sebelumnya. Integration memakai PostgreSQL 18 sementara di runner. Endpoint,
+OpenAPI, Bruno, tabel bisnis, dan relasi ERD tidak berubah oleh pergantian provider.
 
-## Siapkan GitHub Environments
+## Migrasi dan baseline
 
-Buat `dev`, `sit`, `uat`, `stg`, `prd` sebelum mengaktifkan deploy. Batasi semua
-deployment ke branch `main`. Lindungi main dengan PR, review, dan required checks
-keempat job Backend CI. Pasang reviewer bisnis/QA pada UAT, operasional pada STG,
-dan release owner pada PRD; cegah self-review bila tersedia. Dukungan required
-reviewers bergantung paket/visibilitas repo. Jika fitur itu tidak tersedia,
-sediakan gate approval eksternal sebelum mengaktifkan produksi.
+Sebelum memicu Render deploy, runner menarik digest yang akan dipromosikan lalu
+menjalankan `/bin/sh /app/deploy/migrate.sh` pada container terpisah. Hanya
+`DATABASE_URL` dari secret `MIGRATION_DATABASE_URL` diteruskan ke container.
+Database harus dapat dijangkau runner lewat TLS. Jika hanya tersedia pada jaringan
+privat, gunakan runner yang memiliki akses tersebut; jangan membuka akses tanpa
+batas. Migrasi tidak bergantung pada shell/one-off jobs Render Free.
 
-| Lokasi | Nama | Nilai yang dibutuhkan |
-| --- | --- | --- |
-| Repository variable | `KOYEB_DEPLOY_ENABLED` | `false` saat setup, `true` setelah siap |
-| Environment variable | `KOYEB_SERVICE_ID` | UUID service Koyeb tujuan, bukan nama app |
-| Environment variable | `KOYEB_SERVICE_URL` | URL HTTPS service itu, tanpa query/fragment |
-| Environment secret | `KOYEB_API_TOKEN` | API token organisasi/akun Koyeb yang dapat membaca dan mengubah service tujuan |
-| Environment secret | `MIGRATION_DATABASE_URL` | DSN PostgreSQL environment tujuan, user migrator/DDL, TLS |
-| Environment secret | `SMOKE_USERNAME` | Identifier akun smoke aktif di PostgreSQL/Supabase tujuan |
-| Environment secret | `SMOKE_PASSWORD` | Password akun smoke tujuan |
+Ledger `public.dikasa_schema_migrations(name, sha256, applied_at)` dan seluruh SQL
+baru ditulis pada satu transaksi dengan advisory lock. Replay menjadi no-op,
+checksum berubah ditolak, dan kegagalan SQL membatalkan batch. Migrasi di luar
+transaksi belum didukung. Pertahankan line ending LF untuk checksum stabil.
 
-Masukkan nilai rahasia langsung ke GitHub/Koyeb; jangan menaruhnya di PR, file
-Git, atau chat. Gunakan identitas/organisasi terpisah untuk PRD jika pembatasan
-token per service tidak tersedia. Jangan menggunakan token admin bersama untuk
-seluruh environment bila batas akses yang lebih sempit tersedia.
-
-## Siapkan service Koyeb
-
-1. Buat satu service per environment dan catat app, UUID service, region, ukuran
-   instance, serta URL-nya. Jumlah service/instance harus sesuai kapasitas paket
-   Koyeb Anda. Tidak ada resource berbayar yang dibuat otomatis oleh workflow ini.
-2. Pilih sumber **Docker**. Bootstrap menggunakan image yang telah disetujui dan
-   **dikunci ke sha256 digest**, lalu pastikan deployment healthy. Pipeline sengaja
-   membutuhkan service yang sudah sehat agar tersedia definisi untuk recovery.
-   Jangan menyimpan unapplied changes atau mengubah console selama deployment.
-3. Untuk GHCR private, buat Koyeb **private container registry secret** dengan
-   registry `ghcr.io`, username GitHub, dan token read-only `read:packages` yang
-   dapat mengakses package organisasi (termasuk SSO bila diwajibkan). Pasang secret
-   tersebut pada sumber Docker service. `GITHUB_TOKEN` job tidak cocok untuk pull
-   Koyeb jangka panjang karena berakhir setelah job; jangan menggunakannya sebagai
-   registry credential Koyeb. Package boleh public hanya jika disetujui pemiliknya;
-   pipeline tidak mengubah visibility package secara otomatis.
-4. Konfigurasi port `8080:http` dan route `/` ke port 8080, `PORT=8080`, serta
-   HTTP health check `/dikasa/v1/openapi.json` atau TCP health check port 8080.
-   `/dikasa/v1/health` tetap membutuhkan Supabase Bearer token sehingga tidak
-   cocok sebagai health probe anonim.
-5. Pasang konfigurasi runtime berikut pada service Koyeb. Nilai sensitif memakai
-   referensi **Koyeb Secrets**. Secret bersifat global dalam organisasi Koyeb;
-   gunakan nama berawalan environment dan grant akses hanya ke service yang perlu.
-   Database, Supabase project/bucket, SMTP, dan akun smoke dipisahkan per
-   environment. Jangan memakai identitas bisnis nyata untuk pengujian otomatis.
-
-| Runtime environment | Sumber |
-| --- | --- |
-| `DATABASE_URL` | Koyeb Secret: DSN user aplikasi (berbeda dari user migrator) |
-| `SUPABASE_SECRET_KEY` | Koyeb Secret |
-| `OTP_SECRET` | Koyeb Secret, minimal 32 karakter |
-| `SMTP_PASSWORD` | Koyeb Secret |
-| `SUPABASE_URL` | Konfigurasi project Supabase tujuan |
-| `SUPABASE_PUBLISHABLE_KEY` | Publishable key tujuan |
-| `SUPABASE_STORAGE_BUCKET` | Public bucket gambar tujuan |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_FROM` | Konfigurasi SMTP tujuan |
-| `CORS_ALLOWED_ORIGINS` | Daftar origin frontend yang diizinkan |
-| `PORT` | `8080` |
-
-Workflow mempertahankan definisi service yang ada (secret reference, registry
-credential reference, region, instance, port, route, health check, scaling) dan
-hanya mengganti `docker.image`. Pengaturan resource dibuat dan ditinjau di Koyeb.
-Bootstrap service tidak boleh mengoverride entrypoint/command image sehingga API
-yang dijalankan tetap `/app/api`.
-
-## Migrasi
-
-Sebelum mengubah service, runner GitHub menarik **digest yang akan dideploy** dan
-menjalankan `/bin/sh /app/deploy/migrate.sh` di container terpisah. Hanya
-`DATABASE_URL` dari secret `MIGRATION_DATABASE_URL` yang diteruskan ke container.
-Runner harus dapat menjangkau PostgreSQL lewat TLS. Jika database hanya dapat
-diakses dari jaringan privat, gunakan runner dengan akses jaringan itu sebelum
-mengaktifkan deploy; jangan membuka akses database tanpa batas sebagai solusi.
-
-Runner menyimpan `public.dikasa_schema_migrations(name, sha256, applied_at)`.
-Satu transaksi dan advisory lock melindungi seluruh batch; replay menjadi no-op,
-checksum yang berubah ditolak, dan kegagalan SQL membatalkan batch. Migrasi di
-luar transaksi belum didukung. SQL menggunakan LF agar checksum stabil.
-
-Database lama yang sudah berisi `users` tetapi belum memiliki ledger ditolak.
-Setelah verifikasi skema aktual dan backup, operator melakukan baseline sekali
-dari image yang ditinjau (contoh `000017` hanya bila seluruh migrasi sampai versi
-tersebut telah diterapkan):
+Database kosong dapat langsung dimigrasikan. Database lama yang sudah berisi
+`users` tetapi belum memiliki ledger ditolak. Setelah backup dan verifikasi skema,
+operator mencatat baseline sekali dengan image yang ditinjau. Contoh `000017`
+hanya benar bila seluruh migrasi hingga versi tersebut sudah diterapkan:
 
 ```bash
-# DATABASE_URL diekspor dari secret manager ke terminal operator, jangan disimpan di Git.
+# Ekspor DATABASE_URL dari secret manager ke terminal operator; jangan simpan di Git.
 docker run --rm --env DATABASE_URL --entrypoint /bin/sh \
   ghcr.io/dikasa-company/be-dikasa@sha256:REPLACE_WITH_REVIEWED_DIGEST \
   /app/deploy/migrate.sh baseline 000017
 ```
 
-Baseline hanya mencatat checksum, tidak menebak atau mengubah skema aplikasi.
-Jangan menjalankan `make migrate-up` berulang pada database berisi data.
+Untuk database kosong, gunakan command yang sama tanpa `baseline 000017`.
+Baseline hanya mencatat checksum; tidak menebak keadaan skema. Jangan menjalankan
+`make migrate-up` berulang pada database berisi data.
 
-## Promosi dan recovery
+## Deploy, smoke dan recovery
 
 Pilih **Backend promote or rollback**, branch main, release run ID dari summary
-**Backend release**, dan tujuan SIT/UAT/STG/PRD. Workflow memastikan release
-berasal dari push main pada be-release.yml yang sukses; manifest cocok dengan
-commit/run/GHCR repository dan digest itu pernah sukses di environment sebelumnya.
-Catatan bukti menggunakan GitHub Deployments task `dikasa-release`, dipaginasi.
-Lock environment mencegah dua workflow deployment berjalan bersamaan.
+Backend release, dan tujuan SIT/UAT/STG/PRD. Sumber harus push main melalui
+be-release.yml yang sukses; manifest harus cocok dengan commit/run/GHCR dan
+digest yang sama harus pernah sukses di environment sebelumnya. Catatan GitHub
+Deployments task `dikasa-release` dipaginasi. Lock environment mencegah dua
+workflow deployment berjalan bersamaan.
 
-Koyeb menerima update service melalui API resmi `PUT /v1/services/{id}`. Workflow
-menunggu ID deployment baru menjadi HEALTHY dan aktif; status healthy revision
-lama tidak cukup. Setelah itu smoke test memeriksa OpenAPI, penolakan health tanpa
-token dan token invalid, login, serta health dengan token sah pada URL tujuan.
-Ini rolling deployment Koyeb; traffic dapat sudah melayani image baru ketika
-smoke berjalan.
+Script memverifikasi Render service bertipe image-backed Web Service, tidak
+suspended, dan image repository cocok. Existing deploy harus Live dan tidak ada
+deploy pending. Script hanya memanggil `POST /v1/services/{id}/deploys` dengan
+`imageUrl` ber-digest; region, plan, runtime secret, registry credential, dan
+pengaturan service tidak diubah. Image-backed service tidak auto-redeploy saat
+registry berubah, sehingga gunakan pipeline untuk setiap promosi.
 
-Jika deployment atau smoke gagal dan ID update diketahui, workflow memulihkan
-definisi service sebelumnya dan menunggu recovery sehat. Workflow tetap gagal
-sehingga release tidak memperoleh bukti promosi sukses. Recovery menolak menimpa
-deployment lain yang lebih baru. Jika respons update hilang, statusnya tidak
-pasti; periksa console Koyeb sebelum retry. Kegagalan recovery memerlukan operator.
-Schema/data yang berhasil dimigrasikan tidak dibatalkan oleh recovery aplikasi.
+Script menunggu ID deploy baru berstatus `live` dan memeriksa **resolved image
+SHA** yang dilaporkan Render. Status Live dari deploy lama tidak cukup. Smoke
+memeriksa OpenAPI, penolakan health tanpa token dan dengan token invalid, login,
+serta health dengan token sah. Traffic dapat melayani image baru sebelum smoke
+selesai; ini bukan canary bertahap.
 
-Rollback manual memilih release yang sebelumnya sukses di **environment tujuan**
-dan mencentang `rollback`. Tidak ada rebuild dan tidak ada down migration;
-migrasi dilewati. Gunakan expand–contract dan tinjau kompatibilitas skema sebelum
-approval. Smoke/recovery dan approval environment tetap berlaku saat rollback.
+Jika deploy gagal, timeout atau smoke gagal dan ID update diketahui, script
+membatalkan deploy yang masih berjalan lalu meminta deploy baru dari **digest
+sebelumnya** dan menunggu Live. Workflow tetap gagal dan tidak memberi bukti
+promosi sukses. Recovery menolak menimpa deploy lain yang lebih baru. Respons
+create-deploy yang hilang mempunyai hasil tidak pasti: periksa Render sebelum
+retry. Recovery yang gagal memerlukan operator. Cancel paksa workflow dapat
+menghentikan cleanup; periksa state Render sebelum menjalankan ulang.
 
-Manifest disimpan 90 hari. Pertahankan run, artifact, GitHub Deployment records,
-dan digest GHCR untuk masa rollback yang diperlukan. Artifact kedaluwarsa atau
-image terhapus akan memblokir promosi/rollback. Rerun build yang sudah mengunggah
-manifest ditolak oleh artifact immutable; kandidat baru memakai release baru.
+Rollback manual hanya menerima release yang pernah sukses di environment tujuan.
+Tidak ada rebuild atau down migration; migrasi dilewati. Gunakan expand-contract
+dan review kompatibilitas skema sebelum approval. Recovery/rollback aplikasi
+tidak membatalkan SQL/data yang sudah berhasil dimigrasikan. Tetap kosongkan
+Pre-Deploy Command agar Render tidak menjalankan migrasi tambahan saat rollback.
+
+Manifest disimpan 90 hari. Pertahankan run, artifact, deployment records, dan
+digest GHCR selama jendela rollback. Artifact kedaluwarsa/image terhapus akan
+memblokir promosi atau rollback. Rerun build yang telah mengunggah manifest ditolak
+oleh artifact immutable; kandidat baru menggunakan release baru.
 
 ## Verifikasi
 
@@ -185,12 +223,12 @@ go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 shellcheck deploy/*.sh
 ```
 
-Test Koyeb memakai API/migrasi/smoke palsu dan tidak membuat resource cloud.
-`bash deploy/test-migrate.sh` harus memakai database CI kosong khusus melalui
+Test Render memakai API/migrasi/smoke palsu dan tidak membuat resource cloud.
+`bash deploy/test-migrate.sh` memerlukan database CI kosong khusus melalui
 `DATABASE_URL`; `DIKASA_TEST_DATABASE_URL` mengaktifkan integration test Go.
-ERD hanya menambahkan ledger operasional migrasi, tanpa relasi bisnis baru.
 
-Referensi: [Pre-built Docker images](https://www.koyeb.com/docs/build-and-deploy/prebuilt-docker-images),
-[Koyeb Secrets](https://www.koyeb.com/docs/reference/secrets),
-[API resmi](https://www.koyeb.com/docs/reference/api),
+Referensi: [Existing Docker image](https://render.com/docs/deploying-an-image),
+[API deploy](https://api-docs.render.com/reference/create-deploy),
+[Render API keys](https://render.com/docs/api),
+[Free plan](https://render.com/docs/free),
 [GitHub Environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments).
